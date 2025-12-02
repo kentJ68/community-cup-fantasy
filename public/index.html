@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <title>Community Cup Fantasy – Submit Team</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <style>
+    body{font-family:system-ui,Arial; background:#050816;color:#f8fafc;margin:0;padding:18px}
+    .card{max-width:540px;margin:12px auto;background:#071022;padding:18px;border-radius:12px;border:1px solid rgba(255,255,255,0.04)}
+    h1{text-align:center;margin:0 0 8px}
+    label{display:block;margin-top:8px;font-size:0.9rem;opacity:0.9}
+    select,input{width:100%;padding:8px;margin-top:6px;border-radius:8px;border:1px solid #273244;background:#020617;color:#f8fafc}
+    button{margin-top:12px;padding:10px 16px;border-radius:999px;border:none;background:linear-gradient(135deg,#ef4444,#f59e0b);color:#111827;font-weight:700;cursor:pointer}
+    .small{font-size:0.85rem;opacity:0.8;margin-top:6px}
+    a.link{color:#facc15;text-decoration:none}
+    .msg{margin-top:10px;color:#ffd;opacity:0.95}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Community Cup Fantasy</h1>
+    <p class="small">Pick 5 players and a captain. Use the match dropdown to load players (prevents typos).</p>
+
+    <label>Match</label>
+    <select id="matchSelect"></select>
+
+    <label>Your name / nickname</label>
+    <input id="viewerName" placeholder="e.g. GamingEmpire" />
+
+    <label>Your handle (YouTube/Discord) - optional</label>
+    <input id="handle" placeholder="@yourhandle (optional)" />
+
+    <label>Player 1</label>
+    <select id="p1"></select>
+
+    <label>Player 2</label>
+    <select id="p2"></select>
+
+    <label>Player 3</label>
+    <select id="p3"></select>
+
+    <label>Player 4</label>
+    <select id="p4"></select>
+
+    <label>Player 5</label>
+    <select id="p5"></select>
+
+    <label>Captain (select one of above)</label>
+    <select id="captain"></select>
+
+    <button id="submitBtn">Submit Team</button>
+    <div id="msg" class="msg"></div>
+
+    <p class="small">Scoring: Run 1 • Four +1 • Six +2 • Wicket 20 • Maiden 10 • Catch 10 • Captain ×2</p>
+    <p class="small"><a class="link" href="/leaderboard.html">View Leaderboard</a> • <a class="link" href="/admin.html">Admin</a></p>
+  </div>
+
+  <script>
+    async function loadMatches() {
+      const sel = document.getElementById("matchSelect");
+      sel.innerHTML = '<option value="">Loading matches...</option>';
+      try {
+        const res = await fetch('/api/matches');
+        const matches = await res.json();
+        sel.innerHTML = '';
+        if (!Array.isArray(matches) || matches.length === 0) {
+          sel.innerHTML = '<option value="">No matches (ask admin)</option>';
+          return;
+        }
+        matches.forEach(m => {
+          const opt = document.createElement('option');
+          opt.value = m._id;
+          opt.textContent = m.name;
+          sel.appendChild(opt);
+        });
+        // load players for first match
+        loadPlayersForMatch(sel.value);
+      } catch (e) {
+        console.error(e);
+        sel.innerHTML = '<option value="">Failed to load matches</option>';
+      }
+    }
+
+    async function loadPlayersForMatch(matchId) {
+      const ids = ['p1','p2','p3','p4','p5','captain'];
+      ids.forEach(id => document.getElementById(id).innerHTML = '<option value="">Loading...</option>');
+      if (!matchId) {
+        ids.forEach(id => document.getElementById(id).innerHTML = '<option value="">Select a match first</option>');
+        return;
+      }
+      try {
+        const res = await fetch(`/debug/match-data/${matchId}`);
+        const data = await res.json();
+        const players = (data.match && data.match.stats) ? data.match.stats.map(s => s.playerName) : [];
+        const opts = players.length ? players.map(p => `<option value="${p}">${p}</option>`).join('') : '<option value="">No players in stats</option>';
+        ids.forEach(id => document.getElementById(id).innerHTML = opts);
+      } catch (e) {
+        console.error(e);
+        ids.forEach(id => document.getElementById(id).innerHTML = '<option value="">Failed</option>');
+      }
+    }
+
+    document.getElementById('matchSelect').addEventListener('change', (e) => loadPlayersForMatch(e.target.value));
+
+    document.getElementById('submitBtn').addEventListener('click', async () => {
+      const matchId = document.getElementById('matchSelect').value;
+      const viewerName = document.getElementById('viewerName').value.trim();
+      const handle = document.getElementById('handle').value.trim();
+      const players = [
+        document.getElementById('p1').value,
+        document.getElementById('p2').value,
+        document.getElementById('p3').value,
+        document.getElementById('p4').value,
+        document.getElementById('p5').value
+      ].filter(p => p);
+      const captain = document.getElementById('captain').value;
+
+      const msg = document.getElementById('msg');
+      msg.textContent = '';
+      if (!matchId) { msg.textContent = 'Select a match.'; return; }
+      if (!viewerName || players.length !== 5 || !captain) { msg.textContent = 'Fill name, 5 players and captain.'; return; }
+
+      try {
+        const res = await fetch(`/api/matches/${matchId}/entries`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ viewerName, handle, players, captain })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          msg.textContent = data.error || 'Submission failed';
+        } else {
+          msg.textContent = 'Team submitted!';
+        }
+      } catch (e) {
+        console.error(e);
+        msg.textContent = 'Network error';
+      }
+    });
+
+    loadMatches();
+  </script>
+</body>
+</html>

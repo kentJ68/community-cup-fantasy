@@ -1,0 +1,23 @@
+{
+  "name": "community-cup-fantasy",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.2.1",
+    "mongodb": "^7.0.0",
+    "mongoose": "^9.0.0",
+    "multer": "^2.0.2",
+    "node-fetch": "^3.3.2"
+  }
+}
