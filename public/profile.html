@@ -1,0 +1,90 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>Profile — Community Cup</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    body{font-family:system-ui,Arial;background:#071021;color:#e6f1f7;padding:18px}
+    .card{background:#041225;padding:12px;border-radius:10px;max-width:800px;margin:0 auto}
+    label{display:block;margin-top:10px}
+    input{width:100%;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.03)}
+    button{padding:8px 10px;border-radius:8px;border:0;background:#ffd166;color:#081018;font-weight:700;cursor:pointer;margin-top:10px}
+    img.avatar{height:96px;border-radius:12px;object-fit:cover}
+    .small{color:#9fb0c0}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>Your Profile</h2>
+    <div id="profileArea">Loading...</div>
+
+    <form id="profileForm" style="margin-top:12px">
+      <label>Display name</label>
+      <input id="displayName" />
+      <label>Twitch URL</label>
+      <input id="twitchUrl" placeholder="https://www.twitch.tv/username" />
+      <label>YouTube URL</label>
+      <input id="youtubeUrl" placeholder="https://www.youtube.com/channel/..." />
+      <label>Upload avatar (png/jpg)</label>
+      <input id="avatarFile" type="file" accept="image/*" />
+      <button id="saveProfileBtn" type="button">Save Profile</button>
+      <div id="profileMsg" class="small"></div>
+    </form>
+
+    <div style="margin-top:12px">
+      <button id="logoutBtn">Sign out</button>
+    </div>
+  </div>
+
+<script>
+  const token = localStorage.getItem('token');
+  if (!token) document.getElementById('profileArea').innerHTML = `Not signed in — <a href="/login.html">Login</a>`;
+  else loadProfile();
+
+  async function loadProfile() {
+    try {
+      const res = await fetch('/api/me', { headers: { 'Authorization': 'Bearer ' + token }});
+      const d = await res.json();
+      if (!res.ok) { document.getElementById('profileArea').textContent = d.error || 'Failed'; return; }
+      const u = d.user;
+      document.getElementById('profileArea').innerHTML = `
+        <div style="display:flex;gap:12px;align-items:center">
+          <img src="${u.avatarUrl || '/assets/logo.png'}" class="avatar" />
+          <div>
+            <div style="font-size:1.1rem">${u.displayName || u.email}</div>
+            <div class="small">Credits: <strong>${u.credits}</strong></div>
+          </div>
+        </div>
+      `;
+      document.getElementById('displayName').value = u.displayName || '';
+      document.getElementById('twitchUrl').value = u.twitchUrl || '';
+      document.getElementById('youtubeUrl').value = u.youtubeUrl || '';
+    } catch (e) { console.error(e); document.getElementById('profileArea').textContent = 'Error'; }
+  }
+
+  document.getElementById('saveProfileBtn').addEventListener('click', async () => {
+    const msg = document.getElementById('profileMsg'); msg.textContent = '';
+    const displayName = document.getElementById('displayName').value.trim();
+    const twitchUrl = document.getElementById('twitchUrl').value.trim();
+    const youtubeUrl = document.getElementById('youtubeUrl').value.trim();
+    try {
+      const res = await fetch('/api/me', { method:'PUT', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+token }, body: JSON.stringify({ displayName, twitchUrl, youtubeUrl })});
+      const d = await res.json();
+      if (!res.ok) { msg.textContent = d.error || 'Failed'; return; }
+      const file = document.getElementById('avatarFile').files[0];
+      if (file) {
+        const form = new FormData(); form.append('avatar', file);
+        const r2 = await fetch('/api/me/avatar', { method:'POST', headers:{ 'Authorization':'Bearer '+token }, body: form });
+        const j2 = await r2.json();
+        if (!r2.ok) { msg.textContent = j2.error || 'Avatar upload failed'; return; }
+      }
+      msg.textContent = 'Profile saved';
+      loadProfile();
+    } catch (e) { console.error(e); msg.textContent = 'Network error'; }
+  });
+
+  document.getElementById('logoutBtn').addEventListener('click', ()=>{ localStorage.removeItem('token'); window.location = '/'; });
+</script>
+</body>
+</html>

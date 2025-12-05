@@ -1,0 +1,85 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Create Team — Community Cup</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <div class="container">
+    <header><h1>Create Team</h1><a href="/">Home</a></header>
+
+    <main>
+      <section class="card">
+        <label>Match</label>
+        <select id="matchSelect"></select>
+      </section>
+
+      <section class="card">
+        <h3>Roster</h3>
+        <div id="roster">Select a match to load roster</div>
+      </section>
+
+      <section class="card">
+        <h3>Your selection</h3>
+        <div id="picked">No players picked</div>
+        <button id="submitTeam" class="btn">Submit Team</button>
+      </section>
+    </main>
+  </div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="/js/app.js"></script>
+<script>
+const socket = io();
+const el = id => document.getElementById(id);
+let roster = [];
+let picked = [];
+
+async function loadMatches(){
+  const res = await fetch('/api/matches');
+  const matches = await res.json();
+  el('matchSelect').innerHTML = matches.map(m => `<option value="${m._id}">${m.name} • ${m.teamA||''} vs ${m.teamB||''}</option>`).join('');
+  if (matches[0]) loadRoster(matches[0]._id);
+}
+
+async function loadRoster(matchId){
+  el('roster').textContent = 'Loading roster...';
+  const res = await fetch(`/api/matches/${matchId}/players`);
+  if (!res.ok) { el('roster').textContent = 'Failed to load roster'; return; }
+  const data = await res.json();
+  roster = data.players || [];
+  renderRoster();
+}
+
+function renderRoster(){
+  const html = roster.map(p => `<div class="player-row"><button class="pick" data-name="${p.playerName}">Pick</button> ${p.playerName} — ${p.role} — ${p.realTeam} (${p.credits})</div>`).join('');
+  el('roster').innerHTML = html;
+  document.querySelectorAll('.pick').forEach(b => b.addEventListener('click', e=>{
+    const name = e.target.dataset.name;
+    if (picked.includes(name)) picked = picked.filter(x=>x!==name); else {
+      if (picked.length >= 11) return alert('Team already has 11 players');
+      picked.push(name);
+    }
+    el('picked').textContent = picked.join(', ') || 'No players picked';
+  }));
+}
+
+el('matchSelect').addEventListener('change', e=> loadRoster(e.target.value));
+el('submitTeam').addEventListener('click', async ()=>{
+  const matchId = el('matchSelect').value;
+  const body = { players: picked, roles: [], captain: picked[0]||null, vice: picked[1]||null, viewerName: 'Viewer' };
+  const res = await fetch(`/api/matches/${matchId}/teams`, { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify(body) });
+  const out = await res.json();
+  if (out.ok) alert('Team saved'); else alert('Error: ' + (out.error || 'unknown'));
+});
+
+socket.on('rosterUpdate', payload => {
+  if (payload && payload.matchId && payload.matchId === el('matchSelect').value) loadRoster(payload.matchId);
+});
+
+loadMatches();
+</script>
+</body>
+</html>

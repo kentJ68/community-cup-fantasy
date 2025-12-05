@@ -1,0 +1,96 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"/><title>Admin — Community Cup</title></head>
+<body style="font-family:system-ui,Arial;padding:14px;background:#071021;color:#fff">
+  <div style="max-width:900px;margin:8px auto;background:#021025;padding:14px;border-radius:8px">
+    <h2>Admin Panel</h2>
+    <div>
+      <label>Admin token (paste)</label>
+      <input id="adminToken" style="width:100%;padding:8px"/>
+    </div>
+
+    <hr/>
+    <h3>Create Match</h3>
+    <input id="matchName" placeholder="Match name"/>
+    <input id="matchDate" placeholder="YYYY-MM-DD (optional)"/>
+    <button id="createMatchBtn">Create Match</button>
+    <div id="createMatchMsg"></div>
+
+    <hr/>
+    <h3>Create Contest</h3>
+    <label>Select Match</label>
+    <select id="matchSelect"></select>
+    <input id="contestTitle" placeholder="Contest title"/>
+    <input id="contestFee" placeholder="Entry fee (optional)"/>
+    <input id="contestPer" placeholder="Per viewer limit (1)"/>
+    <button id="createContestBtn">Create Contest</button>
+    <div id="createContestMsg"></div>
+
+    <hr/>
+    <h3>Update Match Stats (paste JSON array)</h3>
+    <label>Select Match</label>
+    <select id="matchSelectForStats"></select>
+    <textarea id="statsJson" style="width:100%;height:160px" placeholder='[{"playerName":"RUSSELL","runs":45,"fours":4,"sixes":1,"wickets":0,"maidens":0,"catches":1}]'></textarea>
+    <button id="saveStatsBtn">Save Stats</button>
+    <div id="statsMsg"></div>
+
+    <hr/>
+    <h3>Export Contest Entries</h3>
+    <label>Select Contest (choose match then contest)</label>
+    <select id="matchForExport"></select>
+    <select id="contestForExport"></select>
+    <button id="exportBtn">Export CSV</button>
+    <div id="exportMsg"></div>
+  </div>
+
+<script>
+async function loadMatches() {
+  const res = await fetch('/api/matches'); const matches = await res.json();
+  ['matchSelect','matchSelectForStats','matchForExport'].forEach(id=>{
+    const s = document.getElementById(id);
+    if (s) s.innerHTML = matches.map(m=>`<option value="${m._id}">${m.name}</option>`).join('');
+  });
+  if (matches.length) { loadContestsForExport(matches[0]._id); }
+}
+async function loadContestsForExport(matchId) {
+  const res = await fetch(`/api/matches/${matchId}/contests`); const cs = await res.json();
+  const sel = document.getElementById('contestForExport'); if (sel) sel.innerHTML = cs.map(c=>`<option value="${c._id}">${c.title}</option>`).join('');
+}
+document.getElementById('matchForExport')?.addEventListener('change', e=>loadContestsForExport(e.target.value));
+
+document.getElementById('createMatchBtn').addEventListener('click', async ()=>{
+  const name = document.getElementById('matchName').value.trim();
+  const date = document.getElementById('matchDate').value.trim();
+  const token = document.getElementById('adminToken').value.trim();
+  const res = await fetch('/api/admin/matches?adminToken='+encodeURIComponent(token), { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ name, startTime: date||undefined })});
+  const d = await res.json(); document.getElementById('createMatchMsg').textContent = d.error || 'Match created'; loadMatches();
+});
+
+document.getElementById('createContestBtn').addEventListener('click', async ()=>{
+  const matchId = document.getElementById('matchSelect').value;
+  const title = document.getElementById('contestTitle').value.trim();
+  const entryFee = Number(document.getElementById('contestFee').value || 0);
+  const per = Number(document.getElementById('contestPer').value || 1);
+  const token = document.getElementById('adminToken').value.trim();
+  const res = await fetch(`/api/matches/${matchId}/contests?adminToken=${encodeURIComponent(token)}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ title, entryFee, perViewerLimit: per })});
+  const d = await res.json(); document.getElementById('createContestMsg').textContent = d.error || 'Contest created'; loadMatches();
+});
+
+document.getElementById('saveStatsBtn').addEventListener('click', async ()=>{
+  const matchId = document.getElementById('matchSelectForStats').value;
+  const token = document.getElementById('adminToken').value.trim();
+  let stats; try { stats = JSON.parse(document.getElementById('statsJson').value); } catch(e){ document.getElementById('statsMsg').textContent = 'Invalid JSON'; return; }
+  const res = await fetch(`/api/admin/matches/${matchId}/stats?adminToken=${encodeURIComponent(token)}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ stats })});
+  const d = await res.json(); document.getElementById('statsMsg').textContent = d.error ? d.error : 'Stats saved';
+});
+
+document.getElementById('exportBtn').addEventListener('click', async ()=>{
+  const contestId = document.getElementById('contestForExport').value;
+  const token = document.getElementById('adminToken').value.trim();
+  if (!contestId) { document.getElementById('exportMsg').textContent = 'Select contest'; return; }
+  window.location = `/api/admin/matches/${document.getElementById('matchForExport').value}/export-teams?adminToken=${encodeURIComponent(token)}`;
+});
+
+loadMatches();
+</script>
+</html>

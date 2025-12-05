@@ -1,0 +1,16 @@
+<!doctype html>
+<html><head><meta charset="utf-8"/><title>Auth success</title></head><body>
+  <h3>Auth success</h3>
+  <p id="status">Signing you in...</p>
+  <script>
+    (function(){
+      const params = new URLSearchParams(window.location.search);
+      const token = params.get('token');
+      if (token) {
+        localStorage.setItem('token', token);
+        document.getElementById('status').textContent = 'Signed in. Redirecting...';
+        setTimeout(()=> location.href = '/dashboard.html', 800);
+      } else document.getElementById('status').textContent = 'No token found';
+    })();
+  </script>
+</body></html>

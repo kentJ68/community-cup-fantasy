@@ -1,0 +1,234 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Admin — Matches — Community Cup</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="/css/style.css" />
+  <style>
+    body{font-family:system-ui,Segoe UI,Roboto,Arial;margin:18px;background:#0f1113;color:#e6eef8}
+    a{color:#a6d8ff}
+    .card{background:#0b0c0e;border:1px solid #1f2630;padding:16px;border-radius:8px;margin-bottom:16px}
+    .muted{color:#99a0ab}
+    .error{color:#ff8080}
+    .match-card{padding:12px;border:1px solid #222;margin-bottom:10px;border-radius:6px;display:flex;justify-content:space-between;align-items:center}
+    .controls button{margin-left:8px}
+    input[type="text"]{padding:8px;border-radius:6px;border:1px solid #2a2f36;background:#071018;color:#e6eef8}
+    button{padding:6px 8px;border-radius:6px;border:1px solid #2a2f36;background:#12202a;color:#e6eef8;cursor:pointer}
+    button.small{padding:4px 6px;font-size:0.85rem}
+    pre{background:#061018;padding:12px;border-radius:6px;overflow:auto}
+  </style>
+</head>
+<body>
+  <header style="display:flex;justify-content:space-between;align-items:center">
+    <div>
+      <h2>Admin — Matches</h2>
+      <div class="muted">Admin UI for managing matches / contests</div>
+    </div>
+    <nav>
+      <a href="/">Home</a>
+    </nav>
+  </header>
+
+  <!-- ADMIN TOKEN -->
+  <section class="card">
+    <h3>Admin Token</h3>
+    <p class="muted">You can hardcode token (for local dev) OR set it in the box and save. Saved token is stored in sessionStorage.</p>
+    <div style="display:flex;gap:8px;align-items:center">
+      <input id="tokenInput" type="text" style="width:320px" />
+      <button id="saveTokenBtn">Save Token</button>
+      <button id="clearTokenBtn" class="small">Clear</button>
+      <div id="tokenStatus" class="muted" style="margin-left:12px"></div>
+    </div>
+    <div class="muted" style="margin-top:8px">Hardcoded token in this page: <code>Ok12345</code></div>
+  </section>
+
+  <!-- CREATE MATCH -->
+  <section class="card">
+    <h3>Create Match</h3>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <input id="name" type="text" placeholder="Match name" />
+      <input id="meta" type="text" placeholder="Optional metadata (date/location)" />
+      <button id="createBtn">Create</button>
+      <div id="createMsg" class="muted">Enter details to create match.</div>
+    </div>
+  </section>
+
+  <!-- MATCHES LIST -->
+  <section class="card">
+    <h3>All Matches</h3>
+    <div id="matches">Loading matches...</div>
+  </section>
+
+<script>
+/*
+  Admin matches page
+  - Hardcoded ADMIN_TOKEN set to "Ok12345"
+  - UI token overrides hardcoded one and stores in sessionStorage
+  - Uses admin endpoints: /api/admin/matches, /api/admin/matches/:id
+*/
+
+const ADMIN_TOKEN = "Ok12345"; // <<--- hardcoded token you requested
+
+// ------------------ token helpers ------------------
+function getAdminToken() {
+  const ui = sessionStorage.getItem('adminToken');
+  if (ui && ui.trim()) return ui.trim();
+  return (typeof ADMIN_TOKEN !== 'undefined' ? ADMIN_TOKEN : '') || '';
+}
+
+function updateTokenUI() {
+  const t = sessionStorage.getItem('adminToken') || '';
+  document.getElementById('tokenInput').value = t || ADMIN_TOKEN || '';
+  document.getElementById('tokenStatus').textContent = t ? 'Token (from UI) is set.' : (ADMIN_TOKEN ? 'Using hardcoded token.' : 'No token set.');
+}
+document.getElementById('saveTokenBtn').addEventListener('click', ()=>{
+  const v = document.getElementById('tokenInput').value.trim();
+  sessionStorage.setItem('adminToken', v);
+  updateTokenUI();
+  alert('Token saved to sessionStorage.');
+});
+document.getElementById('clearTokenBtn').addEventListener('click', ()=>{
+  sessionStorage.removeItem('adminToken');
+  updateTokenUI();
+  alert('Token cleared from sessionStorage.');
+});
+updateTokenUI();
+
+// ------------------ utility ------------------
+function escapeHtml(s){ if (s == null) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function adminHeaders(json=true){
+  const h = {};
+  if (json) h['Content-Type'] = 'application/json';
+  const token = getAdminToken();
+  if (token) h['X-Admin-Token'] = token;
+  return h;
+}
+async function fetchJson(url, opts = {}) {
+  const res = await fetch(url, opts);
+  const text = await res.text();
+  let data;
+  try { data = text ? JSON.parse(text) : null; } catch(e) { data = text; }
+  if (!res.ok) {
+    const msg = (data && data.error) ? data.error : (typeof data === 'string' ? data : res.statusText);
+    const err = new Error(msg || `HTTP ${res.status}`);
+    err.status = res.status;
+    err.body = data;
+    throw err;
+  }
+  return data;
+}
+
+// ------------------ load matches (public endpoint) ------------------
+async function loadMatches(){
+  const wrap = document.getElementById('matches');
+  wrap.innerHTML = '<div class="muted">Loading matches...</div>';
+  try {
+    const matches = await fetchJson('/api/matches');
+    if (!Array.isArray(matches) || !matches.length) { wrap.innerHTML = '<div class="muted">No matches found.</div>'; return; }
+    wrap.innerHTML = matches.map(m => {
+      const id = escapeHtml(m._id || m.id || '');
+      const name = escapeHtml(m.name || 'Untitled');
+      const meta = escapeHtml(m.meta || m.startTime || '');
+      return `
+        <div class="match-card" data-id="${id}">
+          <div style="flex:1">
+            <div><strong>${name}</strong></div>
+            <div class="muted">${meta}</div>
+            <div class="muted" style="margin-top:6px">ID: ${id}</div>
+          </div>
+          <div class="controls">
+            <button onclick="goContests('${id}')">Contests</button>
+            <button onclick="goLeaderboard('${id}')">Leaderboard</button>
+            <button onclick="editMatch('${id}')">Edit</button>
+            <button onclick="deleteMatch('${id}')">Delete</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+  } catch (err) {
+    console.error('loadMatches error', err);
+    wrap.innerHTML = `<div class="error">Failed to load matches: ${escapeHtml(err.message || String(err))}</div>`;
+  }
+}
+loadMatches();
+
+// ------------------ create (admin) ------------------
+document.getElementById('createBtn').addEventListener('click', createMatch);
+document.getElementById('name').addEventListener('keydown', e => { if (e.key === 'Enter') createMatch(); });
+
+async function createMatch(){
+  const name = document.getElementById('name').value.trim();
+  const meta = document.getElementById('meta').value.trim();
+  if (!name) return alert('Please enter a match name.');
+  document.getElementById('createMsg').textContent = 'Creating...';
+  try {
+    await fetchJson('/api/admin/matches', {
+      method: 'POST',
+      headers: adminHeaders(true),
+      body: JSON.stringify({ name, meta })
+    });
+    document.getElementById('createMsg').textContent = 'Match created.';
+    document.getElementById('name').value = '';
+    document.getElementById('meta').value = '';
+    await loadMatches();
+  } catch (err) {
+    console.error('createMatch error', err);
+    document.getElementById('createMsg').innerHTML = `<span class="error">Create failed: ${escapeHtml(err.message||'')}</span>`;
+  }
+}
+
+// ------------------ edit (admin) ------------------
+async function editMatch(id){
+  try {
+    // read public match data for prefill
+    const m = await fetchJson(`/api/matches/${encodeURIComponent(id)}`);
+    const newName = prompt('Edit match name', m.name || '');
+    if (newName === null) return;
+    const newMeta = prompt('Edit metadata (date/location)', m.meta || '');
+    if (newName.trim() === '') return alert('Name cannot be empty.');
+
+    await fetchJson(`/api/admin/matches/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      headers: adminHeaders(true),
+      body: JSON.stringify({ name: newName.trim(), meta: (newMeta||'').trim() })
+    });
+
+    alert('Match updated.');
+    await loadMatches();
+  } catch (err) {
+    console.error('editMatch error', err);
+    alert('Edit failed: ' + (err.message || ''));
+  }
+}
+
+// ------------------ delete (admin) ------------------
+async function deleteMatch(id){
+  if (!confirm('Delete this match and all its contests? This is irreversible.')) return;
+  try {
+    const res = await fetch(`/api/admin/matches/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      headers: adminHeaders(false)
+    });
+    const text = await res.text();
+    let body;
+    try { body = text ? JSON.parse(text) : null; } catch(e) { body = text; }
+    if (!res.ok) {
+      const errMsg = (body && body.error) ? body.error : (typeof body === 'string' ? body : res.statusText);
+      throw new Error(errMsg || `HTTP ${res.status}`);
+    }
+    alert('Deleted successfully.');
+    await loadMatches();
+  } catch (err) {
+    console.error('deleteMatch error', err);
+    alert('Delete failed: ' + (err.message || 'Not Found'));
+  }
+}
+
+// ------------------ navigation helpers ------------------
+function goContests(id){ window.location.href = `/admin/contests.html?matchId=${encodeURIComponent(id)}`; }
+function goLeaderboard(id){ window.location.href = `/admin/leaderboard.html?matchId=${encodeURIComponent(id)}`; }
+
+</script>
+</body>
+</html>

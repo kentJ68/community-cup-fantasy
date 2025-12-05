@@ -1,0 +1,304 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Roster Manager – Admin</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    :root { --bg:#071022; --card:#041225; --muted:#9fb0c0; --accent:#ffd166; --danger:#ff6b6b; --ok:#9fffa0; }
+    body { font-family: Inter, system-ui, Arial, sans-serif; margin:0; padding:20px; background:var(--bg); color:#eaf6ff; }
+    h1 { color:var(--accent); margin:0 0 8px 0; }
+    .wrap { max-width:1100px; margin:0 auto; }
+    .card { background:var(--card); padding:16px; border-radius:10px; box-shadow:0 6px 20px rgba(0,0,0,0.5); margin-bottom:14px; }
+    label { display:block; margin-bottom:6px; color:var(--muted); font-size:0.95rem; }
+    select, input[type="file"], input[type="text"], textarea { width:100%; padding:10px; border-radius:8px; border:1px solid rgba(255,255,255,0.04); background: #071726; color: #eaf6ff; box-sizing:border-box; }
+    textarea { min-height:140px; resize:vertical; }
+    .row { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+    button { padding:10px 14px; border-radius:8px; border:0; cursor:pointer; background:linear-gradient(90deg,var(--accent),#ffd89b); color:#081018; font-weight:700; }
+    .muted { color:var(--muted); font-size:0.95rem; }
+    .small { font-size:0.9rem; color:var(--muted); }
+    table { width:100%; border-collapse:collapse; margin-top:12px; }
+    th, td { text-align:left; padding:8px; border-bottom:1px solid rgba(255,255,255,0.03); }
+    .msg { margin-top:8px; font-size:0.95rem; }
+    .msg.ok { color:var(--ok); }
+    .msg.err { color:var(--danger); }
+    .inline { display:inline-block; vertical-align:middle; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Roster Manager — Admin</h1>
+
+    <div class="card" id="matchCard">
+      <label>Select Match</label>
+      <div class="row">
+        <select id="matchSelect" class="inline" style="max-width:70%"></select>
+        <input id="adminToken" placeholder="Paste admin token here (or set in code)" style="max-width:28%" />
+      </div>
+      <div id="matchMsg" class="msg"></div>
+    </div>
+
+    <div class="card">
+      <label>Upload Roster CSV</label>
+      <div class="row">
+        <input id="csvInput" type="file" accept=".csv" />
+        <button id="uploadBtn">Upload CSV</button>
+      </div>
+      <div id="csvMsg" class="msg"></div>
+      <div class="small" style="margin-top:8px">CSV header example: <code>playerName,role,realTeam,credits</code></div>
+    </div>
+
+    <div class="card">
+      <label>Paste JSON Roster</label>
+      <textarea id="jsonInput" placeholder='[{"playerName":"Rashid Khan","role":"BOWL","realTeam":"GT","credits":9.5}]'></textarea>
+      <div class="row" style="margin-top:8px">
+        <button id="pasteBtn">Save JSON</button>
+        <button id="previewBtn" style="background:#77aaff;color:#001">Preview JSON</button>
+      </div>
+      <div id="jsonMsg" class="msg"></div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin:0 0 8px 0">Current Roster Preview <span id="previewCount" class="small"></span></h3>
+      <div id="rosterPreview" class="small">Loading...</div>
+      <div style="margin-top:12px">
+        <button id="clearBtn" style="background:#ff7a7a">Clear roster</button>
+        <span class="small" style="margin-left:10px">Clearing overwrites roster on match.</span>
+      </div>
+    </div>
+  </div>
+
+<script>
+const FALLBACK_ADMIN_TOKEN_PLACEHOLDER = 'YOUR_ADMIN_TOKEN';
+const socket = (typeof io !== 'undefined') ? io() : null;
+const el = id => document.getElementById(id);
+const setMsg = (id, text, ok=false) => {
+  const e = el(id);
+  e.textContent = text;
+  e.className = 'msg ' + (ok ? 'ok' : (text ? 'err' : ''));
+};
+
+async function loadMatches() {
+  try {
+    el('matchSelect').innerHTML = '<option>Loading...</option>';
+    const res = await fetch('/api/matches');
+    if (!res.ok) throw new Error('Failed to load matches: ' + res.status);
+    const matches = await res.json();
+    if (!Array.isArray(matches)) throw new Error('Invalid matches payload');
+    if (matches.length === 0) {
+      el('matchSelect').innerHTML = '<option value="">No matches</option>';
+      setMsg('matchMsg','No matches found. Create one from admin panel.');
+      el('rosterPreview').textContent = 'No match selected.';
+      return;
+    }
+    el('matchSelect').innerHTML = matches.map(m => `<option value="${m._id}">${escapeHtml(m.name)} • ${m.startTime ? new Date(m.startTime).toLocaleString() : 'TBD'}</option>`).join('');
+    setMsg('matchMsg','', true);
+    loadRoster(el('matchSelect').value);
+  } catch (err) {
+    console.error('loadMatches err', err);
+    el('matchSelect').innerHTML = '<option value="">Error loading</option>';
+    setMsg('matchMsg','Error loading matches: ' + (err.message || err));
+    el('rosterPreview').textContent = 'Error loading roster.';
+  }
+}
+
+function escapeHtml(s){ if(!s) return ''; return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+async function loadRoster(matchId) {
+  try {
+    if (!matchId) { el('rosterPreview').textContent = 'No match selected.'; return; }
+    el('rosterPreview').textContent = 'Loading roster...';
+    const res = await fetch(`/api/matches/${encodeURIComponent(matchId)}/players`);
+    if (!res.ok) {
+      const txt = await res.text();
+      throw new Error('Failed to fetch roster: ' + res.status + ' ' + txt);
+    }
+    const data = await res.json();
+    const players = data.players || [];
+    renderRoster(players);
+  } catch (err) {
+    console.error('loadRoster err', err);
+    el('rosterPreview').textContent = 'Error loading roster: ' + (err.message || err);
+  }
+}
+
+function renderRoster(players) {
+  el('previewCount').textContent = `(${players.length} players)`;
+  if (!players.length) {
+    el('rosterPreview').innerHTML = '<div class="muted">No players in roster for this match.</div>';
+    return;
+  }
+  const rows = players.map((p, idx) => `
+    <div style="display:flex;gap:8px;align-items:center;padding:6px;border-bottom:1px solid rgba(255,255,255,0.03)">
+      <div style="width:42%"><strong>${escapeHtml(p.playerName||p.name||'')}</strong></div>
+      <div style="width:18%">${escapeHtml(p.role||'')}</div>
+      <div style="width:20%">${escapeHtml(p.realTeam||'')}</div>
+      <div style="width:12%">${escapeHtml(String(p.credits||''))}</div>
+    </div>
+  `).join('');
+  el('rosterPreview').innerHTML = `<div style="font-size:0.95rem">${rows}</div>`;
+}
+
+function getAdminToken() {
+  const v = (el('adminToken') && el('adminToken').value && el('adminToken').value.trim()) || '';
+  if (v) return v;
+  return FALLBACK_ADMIN_TOKEN_PLACEHOLDER;
+}
+
+async function uploadCSVHandler() {
+  try {
+    const matchId = el('matchSelect').value;
+    if (!matchId) { alert('Select a match first'); return; }
+    const fileInput = el('csvInput');
+    if (!fileInput || !fileInput.files || fileInput.files.length === 0) { alert('Choose a CSV file to upload'); return; }
+    const file = fileInput.files[0];
+
+    setMsg('csvMsg', 'Uploading...', true);
+
+    const form = new FormData();
+    form.append('rosterCsv', file);
+
+    const adminToken = getAdminToken();
+    let res = await fetch(`/api/admin/matches/${encodeURIComponent(matchId)}/roster-csv`, {
+      method: 'POST',
+      headers: adminToken && adminToken !== FALLBACK_ADMIN_TOKEN_PLACEHOLDER ? { 'x-admin-token': adminToken } : {},
+      body: form
+    });
+
+    if (res.status === 401 || res.status === 403) {
+      const url = `/api/admin/matches/${encodeURIComponent(matchId)}/roster-csv?adminToken=${encodeURIComponent(adminToken)}`;
+      res = await fetch(url, { method: 'POST', body: form });
+    }
+
+    let body;
+    try { body = await res.json(); } catch(e){ body = { error: 'invalid-json-response', rawStatus: res.status }; }
+
+    if (!res.ok) {
+      console.error('uploadCSV failed', res.status, body);
+      setMsg('csvMsg', 'Upload failed: ' + (body.error || JSON.stringify(body) || res.status), false);
+      return;
+    }
+
+    setMsg('csvMsg', `Uploaded ${body.count || 'unknown'} players.`, true);
+    await loadRoster(matchId);
+    fileInput.value = '';
+  } catch (err) {
+    console.error('uploadCSVHandler err', err);
+    setMsg('csvMsg', 'Unexpected error: ' + (err.message || err), false);
+  }
+}
+
+async function pasteJSONHandler() {
+  try {
+    const matchId = el('matchSelect').value;
+    if (!matchId) { alert('Select a match first'); return; }
+    const txt = el('jsonInput').value.trim();
+    if (!txt) { alert('Paste JSON first'); return; }
+    let players;
+    try { players = JSON.parse(txt); } catch(e) { setMsg('jsonMsg', 'Invalid JSON: ' + e.message, false); return; }
+
+    setMsg('jsonMsg', 'Saving roster...', true);
+
+    const adminToken = getAdminToken();
+    const urlBase = `/api/admin/matches/${encodeURIComponent(matchId)}/roster`;
+
+    let res = await fetch(urlBase, {
+      method: 'POST',
+      headers: Object.assign({ 'Content-Type': 'application/json' }, (adminToken && adminToken !== FALLBACK_ADMIN_TOKEN_PLACEHOLDER ? { 'x-admin-token': adminToken } : {})),
+      body: JSON.stringify({ players })
+    });
+
+    if (res.status === 401 || res.status === 403) {
+      const url = `${urlBase}?adminToken=${encodeURIComponent(adminToken)}`;
+      res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ players })
+      });
+    }
+
+    let body;
+    try { body = await res.json(); } catch(e) { body = { error: 'invalid-json', rawStatus: res.status }; }
+
+    if (!res.ok) {
+      setMsg('jsonMsg', 'Save failed: ' + (body.error || JSON.stringify(body) || res.status), false);
+      return;
+    }
+
+    setMsg('jsonMsg', `Saved ${body.count || 'unknown'} players.`, true);
+    await loadRoster(matchId);
+  } catch (err) {
+    console.error('pasteJSONHandler err', err);
+    setMsg('jsonMsg', 'Unexpected error: ' + (err.message || err), false);
+  }
+}
+
+function previewJSON() {
+  const txt = el('jsonInput').value.trim();
+  if (!txt) { alert('Paste JSON first'); return; }
+  try {
+    const players = JSON.parse(txt);
+    if (!Array.isArray(players)) { alert('JSON should be an array of player objects'); return; }
+    renderRoster(players);
+    setMsg('jsonMsg', `Previewing ${players.length} players (not saved)`, true);
+  } catch (e) {
+    setMsg('jsonMsg', 'Invalid JSON: ' + e.message, false);
+  }
+}
+
+async function clearRosterHandler() {
+  if (!confirm('This will clear (overwrite) the roster for the selected match. Continue?')) return;
+  try {
+    const matchId = el('matchSelect').value;
+    const adminToken = getAdminToken();
+    const urlBase = `/api/admin/matches/${encodeURIComponent(matchId)}/roster`;
+    let res = await fetch(urlBase, {
+      method: 'POST',
+      headers: Object.assign({ 'Content-Type':'application/json' }, (adminToken && adminToken !== FALLBACK_ADMIN_TOKEN_PLACEHOLDER ? { 'x-admin-token': adminToken } : {})),
+      body: JSON.stringify({ players: [] })
+    });
+    if (res.status === 401 || res.status === 403) {
+      const url = `${urlBase}?adminToken=${encodeURIComponent(adminToken)}`;
+      res = await fetch(url, { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ players: [] }) });
+    }
+    const body = await res.json().catch(()=>({}));
+    if (!res.ok) {
+      setMsg('csvMsg', 'Clear failed: ' + (body.error || res.status), false);
+      return;
+    }
+    setMsg('csvMsg', 'Roster cleared', true);
+    await loadRoster(matchId);
+  } catch (err) {
+    console.error('clearRosterHandler err', err);
+    setMsg('csvMsg', 'Error clearing roster: ' + (err.message || err), false);
+  }
+}
+
+el('uploadBtn').addEventListener('click', uploadCSVHandler);
+el('pasteBtn').addEventListener('click', pasteJSONHandler);
+el('previewBtn').addEventListener('click', previewJSON);
+el('clearBtn').addEventListener('click', clearRosterHandler);
+el('matchSelect').addEventListener('change', () => loadRoster(el('matchSelect').value));
+
+if (socket) {
+  socket.on('connect', () => console.log('socket connected'));
+  socket.on('rosterUpdate', payload => {
+    if (payload && payload.matchId && el('matchSelect').value === String(payload.matchId)) {
+      loadRoster(payload.matchId);
+      setMsg('csvMsg', 'Roster updated by admin (live)', true);
+    }
+  });
+}
+
+(async function init(){
+  try {
+    await loadMatches();
+  } catch (e) {
+    console.error('init err', e);
+    el('rosterPreview').textContent = 'Init error: ' + (e.message || e);
+  }
+})();
+</script>
+</body>
+</html>

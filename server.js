@@ -1,496 +1,621 @@
-// server.js (with rate-limiting + one-submission-per-IP)
+// ===============================
+// server.js – FULL FANTASY ENGINE
+// Version B (Dream11-style)
+// ===============================
+
 require("dotenv").config();
-const express = require("express");
+const fs = require("fs");
 const path = require("path");
+const http = require("http");
+
+const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
-const rateLimit = require("express-rate-limit");
+const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
+const multer = require("multer");
+const { OAuth2Client } = require("google-auth-library");
 
+// -------------------------
+// Environment Variables
+// -------------------------
+const PORT = process.env.PORT || 4000;
+const MONGO = process.env.MONGO_URI || "";
+const JWT_SECRET = process.env.JWT_SECRET || "dev_secret";
+const ADMIN_TOKEN = process.env.ADMIN_TOKEN || "";
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "";
+
+// -------------------------
+// MongoDB Connection
+// -------------------------
+mongoose
+  .connect(MONGO, { dbName: "community_cup" })
+  .then(() => console.log("MongoDB connected"))
+  .catch((err) => console.error("Mongo Error:", err));
+
+// -------------------------
+// Models
+// -------------------------
+const User = require("./models/User");
+const Match = require("./models/Match");
+const Team = require("./models/Team");
+const Contest = require("./models/Contest");
+const TeamEntry = require("./models/TeamEntry");
+
+// -------------------------
+// Express + Server
+// -------------------------
 const app = express();
+const server = http.createServer(app);
 
-// If you're behind a reverse proxy (Render, Vercel, etc.) set trust proxy:
-if (process.env.TRUST_PROXY === "true") {
-  app.set("trust proxy", 1);
-}
+// -------------------------
+// Socket.IO
+// -------------------------
+const { Server: IOServer } = require("socket.io");
+const io = new IOServer(server, { cors: { origin: "*" } });
+global.io = io;
 
+io.on("connection", (socket) => {
+  console.log("Socket:", socket.id);
+
+  socket.on("joinMatch", (matchId) => {
+    if (matchId) socket.join(`match_${matchId}`);
+  });
+
+  socket.on("leaveMatch", (matchId) => {
+    if (matchId) socket.leave(`match_${matchId}`);
+  });
+});
+
+// -------------------------
+// Middleware
+// -------------------------
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "3mb" }));
+app.use(express.urlencoded({ extended: true }));
+
+// Static folder
 app.use(express.static(path.join(__dirname, "public")));
 
-// ---------- CONFIG ----------
-const MONGO = process.env.MONGO_URI || "";
-const PORT = process.env.PORT || 4000;
-const ADMIN_TOKEN = process.env.ADMIN_TOKEN || "";
+// Upload folders
+const UPLOAD_DIR = path.join(__dirname, "uploads");
+const AVATAR_DIR = path.join(__dirname, "public", "assets", "avatars");
+fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+fs.mkdirSync(AVATAR_DIR, { recursive: true });
 
-// ---------- RATE LIMITER ----------
-// Global limiter for all routes (adjust values as needed)
-const globalLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
-  max: 200, // max requests per IP per windowMs
-  standardHeaders: true,
-  legacyHeaders: false
-});
-app.use(globalLimiter);
+const uploadRoster = multer({ dest: path.join(UPLOAD_DIR, "roster") });
+const uploadAvatar = multer({ dest: AVATAR_DIR });
 
-// Specific, stricter limiter for team submissions (to avoid spam)
-const submitLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
-  max: 10, // max submissions per IP per hour across the entries endpoint
-  message: { error: "Too many submissions from this IP, try again later." },
-  standardHeaders: true,
-  legacyHeaders: false
-});
-
-// ---------- DB CONNECT ----------
-let dbConnected = false;
-if (MONGO) {
-  mongoose
-    .connect(MONGO, { dbName: "community_cup_fantasy" })
-    .then(() => {
-      console.log("MongoDB connected");
-      dbConnected = true;
-    })
-    .catch((err) => {
-      console.error("Mongo error:", err);
-    });
-} else {
-  console.log("MONGO_URI not set — running without DB (use .env to set it)");
+// -------------------------
+// Helper Functions
+// -------------------------
+function signJwt(payload) {
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: "7d" });
 }
 
-// ---------- SCHEMAS (include ip field on TeamEntry) ----------
-const matchSchema = new mongoose.Schema(
-  {
-    name: String,
-    date: Date,
-    stats: [
-      {
-        playerName: String,
-        runs: { type: Number, default: 0 },
-        fours: { type: Number, default: 0 },
-        sixes: { type: Number, default: 0 },
-        wickets: { type: Number, default: 0 },
-        maidens: { type: Number, default: 0 },
-        catches: { type: Number, default: 0 }
-      }
-    ]
-  },
-  { timestamps: true }
-);
-
-const teamEntrySchema = new mongoose.Schema(
-  {
-    matchId: { type: mongoose.Schema.Types.ObjectId, ref: "Match" },
-    viewerName: String,
-    handle: String,
-    players: [String],
-    captain: String,
-    ip: String, // store submitter IP
-    createdAt: { type: Date, default: Date.now }
-  },
-  { timestamps: true }
-);
-
-const Match = mongoose.models.Match || mongoose.model("Match", matchSchema);
-const TeamEntry =
-  mongoose.models.TeamEntry || mongoose.model("TeamEntry", teamEntrySchema);
-
-// ---------- In-memory fallback (when DB not connected) ----------
-let inMemoryMatches = [];
-let inMemoryEntries = [];
-let localMatchNextId = 1;
-let localEntryNextId = 1;
-
-function usingDB() {
-  return dbConnected && mongoose.connection && mongoose.connection.readyState === 1;
+function verifyJwt(token) {
+  try {
+    return jwt.verify(token, JWT_SECRET);
+  } catch {
+    return null;
+  }
 }
 
-// ---------- Helpers ----------
-function calcPlayerPoints(stat) {
-  if (!stat) return 0;
-  const runs = stat.runs || 0;
-  const fours = stat.fours || 0;
-  const sixes = stat.sixes || 0;
-  const wickets = stat.wickets || 0;
-  const maidens = stat.maidens || 0;
-  const catches = stat.catches || 0;
-
-  return (
-    runs * 1 +
-    fours * 1 +
-    sixes * 2 +
-    wickets * 20 +
-    maidens * 10 +
-    catches * 10
-  );
+// AUTH middleware
+function auth(req, res, next) {
+  const auth = (req.headers.authorization || "").split(" ");
+  if (auth.length === 2 && auth[0] === "Bearer") {
+    const pl = verifyJwt(auth[1]);
+    if (pl) {
+      req.user = pl;
+      return next();
+    }
+  }
+  return res.status(401).json({ error: "Unauthorized" });
 }
 
-// ---------- Admin auth ----------
-function adminAuth(req, res, next) {
+// ADMIN middleware
+function admin(req, res, next) {
   const token = req.headers["x-admin-token"] || req.query.adminToken;
-  if (!ADMIN_TOKEN) return res.status(401).json({ error: "Admin token not configured on server" });
-  if (token === ADMIN_TOKEN) return next();
-  return res.status(401).json({ error: "Unauthorized (admin token missing/wrong)" });
+
+  if (ADMIN_TOKEN && token === ADMIN_TOKEN) return next();
+
+  const authHeader = (req.headers.authorization || "").split(" ");
+  if (authHeader.length === 2 && authHeader[0] === "Bearer") {
+    const pl = verifyJwt(authHeader[1]);
+    if (pl && pl.role === "admin") {
+      req.user = pl;
+      return next();
+    }
+  }
+
+  return res.status(401).json({ error: "Unauthorized (admin)" });
 }
 
-// Helper: get client IP reliably
-function getClientIp(req) {
-  // trust proxy if configured; x-forwarded-for may contain multiple IPs
-  const raw = req.headers["x-forwarded-for"] || req.ip || req.connection?.remoteAddress || "";
-  if (!raw) return "";
-  return raw.split(",")[0].trim();
-}
+// -------------------------
+// GOOGLE LOGIN
+// -------------------------
+const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID);
 
-// ---------- Routes ----------
-// Health
-app.get("/api/health", (req, res) => {
-  res.json({ ok: true, message: "Fantasy API running" });
-});
-
-// DEBUG route: inspect match + entries (temporary)
-app.get("/debug/match-data/:matchId", async (req, res) => {
+app.post("/api/auth/google-idtoken", async (req, res) => {
   try {
-    const { matchId } = req.params;
-    if (usingDB()) {
-      const match = await Match.findById(matchId).lean();
-      const entries = await TeamEntry.find({ matchId }).lean();
-      return res.json({ ok: true, match, entries });
-    } else {
-      const match = inMemoryMatches.find((m) => String(m._id) === String(matchId));
-      const entries = inMemoryEntries.filter((e) => String(e.matchId) === String(matchId));
-      return res.json({ ok: true, match, entries });
-    }
-  } catch (err) {
-    console.error("DEBUG /debug/match-data error:", err);
-    return res.status(500).json({ error: "debug-failed", details: err.message });
-  }
-});
+    const { id_token } = req.body;
+    if (!id_token) return res.status(400).json({ error: "id_token missing" });
 
-// Create match (admin)
-app.post("/api/matches", adminAuth, async (req, res) => {
-  try {
-    const { name, date } = req.body;
-    if (!name || name.toString().trim() === "") {
-      return res.status(400).json({ error: "Match name required" });
-    }
-
-    if (usingDB()) {
-      const match = await Match.create({ name, date });
-      return res.json(match);
-    } else {
-      const match = {
-        _id: `local-${localMatchNextId++}`,
-        name,
-        date: date || new Date(),
-        stats: []
-      };
-      inMemoryMatches.push(match);
-      return res.json(match);
-    }
-  } catch (err) {
-    console.error("Create match error:", err);
-    return res.status(500).json({ error: "Failed to create match" });
-  }
-});
-
-// Get matches
-app.get("/api/matches", async (req, res) => {
-  try {
-    if (usingDB()) {
-      const matches = await Match.find().sort({ date: -1 });
-      return res.json(matches);
-    } else {
-      const sorted = inMemoryMatches.slice().sort((a, b) => new Date(b.date) - new Date(a.date));
-      return res.json(sorted);
-    }
-  } catch (err) {
-    console.error("Get matches error:", err);
-    return res.status(500).json({ error: "Failed to fetch matches" });
-  }
-});
-
-// Update stats for a match (admin)
-app.post("/api/matches/:matchId/stats", adminAuth, async (req, res) => {
-  try {
-    const { matchId } = req.params;
-    const { stats } = req.body; // expected array
-
-    if (!Array.isArray(stats)) return res.status(400).json({ error: "stats must be an array" });
-
-    if (usingDB()) {
-      const match = await Match.findById(matchId);
-      if (!match) return res.status(404).json({ error: "Match not found" });
-      match.stats = stats;
-      await match.save();
-      return res.json({ ok: true, match });
-    } else {
-      const match = inMemoryMatches.find((m) => String(m._id) === String(matchId));
-      if (!match) return res.status(404).json({ error: "Match not found (in-memory)" });
-      match.stats = stats;
-      return res.json({ ok: true, match });
-    }
-  } catch (err) {
-    console.error("Update stats error:", err);
-    return res.status(500).json({ error: "Failed to update stats" });
-  }
-});
-
-// Viewer submit entry (with submitLimiter applied)
-app.post("/api/matches/:matchId/entries", submitLimiter, async (req, res) => {
-  try {
-    const { matchId } = req.params;
-    const { viewerName, handle, players, captain } = req.body;
-    const ip = getClientIp(req);
-
-    if (!viewerName || !players || players.length === 0 || !captain) {
-      return res.status(400).json({ error: "Missing fields" });
-    }
-
-    // One-submission-per-IP or per-viewerName for this match
-    if (usingDB()) {
-      // check by viewerName OR ip
-      const existing = await TeamEntry.findOne({
-        matchId,
-        $or: [{ viewerName: viewerName }, { ip: ip }]
-      });
-      if (existing) {
-        return res.status(400).json({ error: "You already submitted a team for this match (viewer or IP already used)" });
-      }
-
-      const entry = await TeamEntry.create({ matchId, viewerName, handle, players, captain, ip });
-      console.log("New entry (DB):", entry.viewerName, "match:", matchId, "ip:", ip);
-      return res.json({ ok: true, entry });
-    } else {
-      // in-memory
-      const exists = inMemoryEntries.find((e) => e.matchId === matchId && (e.viewerName === viewerName || e.ip === ip));
-      if (exists) {
-        return res.status(400).json({ error: "You already submitted a team for this match (local viewer or IP already used)" });
-      }
-
-      const entry = {
-        _id: `entry-${localEntryNextId++}`,
-        matchId,
-        viewerName,
-        handle,
-        players,
-        captain,
-        ip,
-        createdAt: new Date()
-      };
-      inMemoryEntries.push(entry);
-      console.log("New entry (MEM):", viewerName, "match:", matchId, "ip:", ip);
-      return res.json({ ok: true, entry });
-    }
-  } catch (err) {
-    console.error("Submit entry error:", err);
-    return res.status(500).json({ error: "Failed to submit entry" });
-  }
-});
-const multer = require("multer");
-const fetch = require("node-fetch");
-const upload = multer({ dest: path.join(__dirname, "tmp_uploads") });
-const OCR_SPACE_KEY = process.env.OCR_SPACE_API_KEY || "";
-
-// Admin: upload screenshot and parse scorecard using OCR.space
-app.post("/api/admin/ocr-scorecard/:matchId", adminAuth, upload.single("image"), async (req, res) => {
-  try {
-    const matchId = req.params.matchId;
-    if (!req.file) return res.status(400).json({ error: "No file uploaded" });
-    if (!OCR_SPACE_KEY) return res.status(500).json({ error: "OCR API key not configured" });
-
-    // send file to OCR.space
-    const formData = new (require("form-data"))();
-    formData.append("apikey", OCR_SPACE_KEY);
-    formData.append("language", "eng");
-    formData.append("isTable", "true");
-    formData.append("OCREngine", "2");
-    formData.append("file", require("fs").createReadStream(req.file.path));
-
-    const ocrRes = await fetch("https://api.ocr.space/parse/image", { method: "POST", body: formData });
-    const ocrJson = await ocrRes.json();
-
-    // cleanup temp file
-    try { require("fs").unlinkSync(req.file.path); } catch(e){}
-
-    if (!ocrJson || !ocrJson.ParsedResults || ocrJson.ParsedResults.length === 0) {
-      return res.status(500).json({ error: "OCR failed", details: ocrJson });
-    }
-
-    const text = ocrJson.ParsedResults.map(p => p.ParsedText).join("\n");
-    // parse text into stats
-    const stats = parseScorecardTextToStats(text);
-    if (!stats || stats.length === 0) {
-      return res.status(400).json({ error: "No players parsed from image", rawText: text });
-    }
-
-    // Save stats to match (use your existing Update Stats route logic)
-    // If using DB:
-    if (usingDB()) {
-      const match = await Match.findById(matchId);
-      if (!match) return res.status(404).json({ error: "Match not found" });
-      match.stats = stats;
-      await match.save();
-      return res.json({ ok: true, stats, matchId });
-    } else {
-      // in-memory fallback
-      const match = inMemoryMatches.find(m => String(m._id) === String(matchId));
-      if (!match) return res.status(404).json({ error: "Match not found (local)" });
-      match.stats = stats;
-      return res.json({ ok: true, stats, matchId });
-    }
-  } catch (err) {
-    console.error("OCR upload error:", err);
-    return res.status(500).json({ error: "OCR processing failed", details: err.message });
-  }
-});
-
-// Leaderboard
-app.get("/api/matches/:matchId/leaderboard", async (req, res) => {
-  try {
-    const { matchId } = req.params;
-
-    let match;
-    let entries;
-
-    if (usingDB()) {
-      match = await Match.findById(matchId).lean();
-      if (!match) return res.status(404).json({ error: "Match not found" });
-      entries = await TeamEntry.find({ matchId }).sort({ createdAt: 1 }).lean();
-    } else {
-      match = inMemoryMatches.find((m) => String(m._id) === String(matchId));
-      if (!match) return res.status(404).json({ error: "Match not found (in-memory)" });
-      entries = inMemoryEntries.filter((e) => e.matchId === matchId);
-    }
-
-    // build player -> base points map
-    const playerPoints = {};
-    (match.stats || []).forEach((s) => {
-      const key = (s.playerName || "").toUpperCase();
-      playerPoints[key] = calcPlayerPoints(s);
+    const ticket = await googleClient.verifyIdToken({
+      idToken: id_token,
+      audience: GOOGLE_CLIENT_ID,
     });
-// Parse OCR text into stats array
-function parseScorecardTextToStats(text) {
-  if (!text || typeof text !== "string") return [];
 
-  const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+    const payload = ticket.getPayload();
+    const googleId = payload.sub;
+    const email = payload.email;
+    const name = payload.name;
+    const picture = payload.picture;
 
-  const stats = [];
-  // candidate regex patterns:
-  const patterns = [
-    // name runs fours sixes wickets maidens catches  (7 columns)
-    /^(?<name>[A-Za-z.\-'\s]{2,40})\s+(?<runs>\d{1,3})\s+(?<fours>\d{1,2})\s+(?<sixes>\d{1,2})\s+(?<wickets>\d{1,2})\s+(?<maidens>\d{1,2})\s+(?<catches>\d{1,2})$/,
-    // name runs (fours/sixes info) catches etc. fallback simpler:
-    /^(?<name>[A-Za-z.\-'\s]{2,40})\s+(?<runs>\d{1,3})\s+(?:\(?[^\)]*\)?)\s*(?<wickets>\d{1,2})?\s*(?<catches>\d{1,2})?$/,
-    // common scorecard short: Name 45 4 1 0 0 1
-    /^(?<name>[A-Za-z.\-'\s]{2,40})\s+(?<runs>\d{1,3})\s+(?<fours>\d{1,2})\s+(?<sixes>\d{1,2})\s+(?<wickets>\d{1,2})\s+(?<maidens>\d{1,2})\s+(?<catches>\d{1,2})$/
-  ];
+    let user = await User.findOne({ googleId });
+    if (!user && email) user = await User.findOne({ email });
 
-  for (const raw of lines) {
-    // remove common noise (like "Extras", "TOTAL", "Fall of Wickets", etc.)
-    const upper = raw.toUpperCase();
-    if (upper.includes("EXTRAS") || upper.includes("TOTAL") || upper.includes("FOW") || upper.includes("OVER") || upper.includes("BOWLING") || upper.includes("TEAM")) continue;
-
-    let matched = null;
-    for (const p of patterns) {
-      const m = raw.match(p);
-      if (m && m.groups) { matched = m.groups; break; }
-    }
-
-    if (matched) {
-      const name = (matched.name || "").replace(/\s{2,}/g, " ").trim();
-      const runs = parseInt(matched.runs || 0, 10) || 0;
-      const fours = parseInt(matched.fours || 0, 10) || 0;
-      const sixes = parseInt(matched.sixes || 0, 10) || 0;
-      const wickets = parseInt(matched.wickets || 0, 10) || 0;
-      const maidens = parseInt(matched.maidens || 0, 10) || 0;
-      const catches = parseInt(matched.catches || 0, 10) || 0;
-
-      // basic sanity filter
-      if (name && (runs > 0 || wickets > 0 || catches > 0)) {
-        stats.push({ playerName: name.toUpperCase(), runs, fours, sixes, wickets, maidens, catches });
-      }
+    if (user) {
+      user.googleId = googleId;
+      if (!user.avatarUrl) user.avatarUrl = picture;
+      await user.save();
     } else {
-      // try to capture patterns like "RUSSELL 45 4x4 1x6 1c"
-      // look for name then numbers inside
-      const parts = raw.split(/\s{2,}|\s+/).filter(Boolean);
-      if (parts.length >= 2) {
-        const maybeRuns = parts.find(p => /^\d{1,3}$/.test(p));
-        if (maybeRuns) {
-          const namePart = raw.substring(0, raw.indexOf(maybeRuns)).trim();
-          const name = namePart.replace(/\s{2,}/g, " ").trim();
-          if (name.length > 1) {
-            const runs = parseInt(maybeRuns, 10) || 0;
-            // rough default: other fields zero
-            stats.push({ playerName: name.toUpperCase(), runs, fours: 0, sixes: 0, wickets: 0, maidens: 0, catches: 0 });
-          }
-        }
-      }
+      user = await User.create({
+        googleId,
+        email,
+        displayName: name,
+        avatarUrl: picture,
+      });
     }
-  }
 
-  // If no stats found at all, try a looser extraction: lines with a number = runs
-  if (stats.length === 0) {
-    for (const raw of lines) {
-      const m = raw.match(/^([A-Za-z.\-'\s]{2,40})\s+(\d{1,3})/);
-      if (m) {
-        stats.push({ playerName: m[1].trim().toUpperCase(), runs: parseInt(m[2],10)||0, fours:0, sixes:0, wickets:0, maidens:0, catches:0 });
-      }
-    }
-  }
+    const token = signJwt({ id: user._id, role: user.role });
 
-  // remove duplicates by playerName (keep first)
-  const seen = new Set();
-  return stats.filter(s => {
-    if (seen.has(s.playerName)) return false;
-    seen.add(s.playerName);
-    return true;
-  });
+    return res.json({
+      ok: true,
+      token,
+      user: {
+        id: user._id,
+        displayName: user.displayName,
+        avatarUrl: user.avatarUrl,
+      },
+    });
+  } catch (err) {
+    return res.status(400).json({ error: "Invalid id_token" });
+  }
+});
+
+// -------------------------
+// EMAIL REGISTER + LOGIN
+// -------------------------
+app.post("/api/auth/register", async (req, res) => {
+  try {
+    const { email, password, displayName } = req.body;
+    if (!email || !password) return res.status(400).json({ error: "Missing fields" });
+
+    if (await User.findOne({ email }))
+      return res.status(400).json({ error: "Email exists" });
+
+    const hash = await bcrypt.hash(password, 10);
+
+    const user = await User.create({
+      email,
+      passwordHash: hash,
+      displayName,
+    });
+
+    const token = signJwt({ id: user._id, role: user.role });
+    return res.json({
+      ok: true,
+      token,
+      user: { id: user._id, displayName: user.displayName },
+    });
+  } catch (err) {
+    return res.status(500).json({ error: "Register failed" });
+  }
+});
+
+app.post("/api/auth/login", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    const user = await User.findOne({ email });
+    if (!user) return res.status(400).json({ error: "Invalid" });
+
+    const ok = await bcrypt.compare(password, user.passwordHash);
+    if (!ok) return res.status(400).json({ error: "Invalid" });
+
+    const token = signJwt({ id: user._id, role: user.role });
+
+    return res.json({
+      ok: true,
+      token,
+      user: { id: user._id, displayName: user.displayName },
+    });
+  } catch (err) {
+    return res.status(500).json({ error: "Login failed" });
+  }
+});
+
+// -------------------------
+// PROFILE + AVATAR
+// -------------------------
+app.get("/api/me", auth, async (req, res) => {
+  const user = await User.findById(req.user.id).lean();
+  if (!user) return res.status(404).json({ error: "User not found" });
+  delete user.passwordHash;
+  return res.json({ ok: true, user });
+});
+
+app.post("/api/me/avatar", auth, uploadAvatar.single("avatar"), async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ error: "No user" });
+
+    const ext = path.extname(req.file.originalname) || ".png";
+    const fileName = `${user._id}_${Date.now()}${ext}`;
+    const filePath = path.join(AVATAR_DIR, fileName);
+
+    fs.renameSync(req.file.path, filePath);
+
+    user.avatarUrl = `/assets/avatars/${fileName}`;
+    await user.save();
+
+    return res.json({ ok: true, avatarUrl: user.avatarUrl });
+  } catch (err) {
+    return res.status(500).json({ error: "Avatar upload failed" });
+  }
+});
+
+// -------------------------
+// MATCHES (Admin)
+// -------------------------
+app.post("/api/admin/matches", admin, async (req, res) => {
+  try {
+    const { name, startTime, streamUrl, teamA, teamB } = req.body;
+    if (!name) return res.status(400).json({ error: "Match name required" });
+
+    const match = await Match.create({
+      name,
+      startTime: startTime ? new Date(startTime) : new Date(),
+      streamUrl,
+      teamA,
+      teamB,
+    });
+
+    return res.json({ ok: true, match });
+  } catch (err) {
+    return res.status(500).json({ error: "Match creation failed" });
+  }
+});
+
+// DELETE MATCH
+app.delete("/api/admin/matches/:matchId", admin, async (req, res) => {
+  const { matchId } = req.params;
+
+  await Contest.deleteMany({ matchId });
+  await Team.deleteMany({ matchId });
+  await TeamEntry.deleteMany({ matchId });
+  await Match.deleteOne({ _id: matchId });
+
+  io.emit("matchDeleted", { matchId });
+
+  return res.json({ ok: true });
+});
+
+app.get("/api/matches", async (req, res) => {
+  const matches = await Match.find().sort({ startTime: -1 }).lean();
+  return res.json(matches);
+});
+
+app.get("/api/matches/:matchId", async (req, res) => {
+  const match = await Match.findById(req.params.matchId).lean();
+  if (!match) return res.status(404).json({ error: "Match not found" });
+  return res.json(match);
+});
+
+// -------------------------
+// ROSTER UPLOAD (CSV + JSON)
+// -------------------------
+
+// CSV parser
+function parseCSV(text) {
+  text = text.replace(/^\uFEFF/, "").replace(/\r\n/g, "\n").trim();
+  if (!text) return { header: [], rows: [] };
+
+  const lines = text.split("\n");
+  const header = lines[0].split(",").map((x) => x.trim().toLowerCase());
+  const rows = lines.slice(1).map((line) => line.split(",").map((x) => x.trim()));
+  return { header, rows };
 }
 
-    // compile leaderboard
-    const leaderboard = (entries || []).map((e) => {
-      let total = 0;
-      const breakdown = [];
+app.post(
+  "/api/admin/matches/:matchId/roster-csv",
+  admin,
+  uploadRoster.single("rosterCsv"),
+  async (req, res) => {
+    try {
+      const csv = fs.readFileSync(req.file.path, "utf8");
+      fs.unlinkSync(req.file.path);
 
-      (e.players || []).forEach((p) => {
-        const key = (p || "").toUpperCase();
-        const base = playerPoints[key] || 0;
-        let applied = base;
-        let isCaptain = false;
-        if (e.captain && key === (e.captain || "").toUpperCase()) {
-          applied = base * 2;
-          isCaptain = true;
-        }
-        total += applied;
-        breakdown.push({ player: p, base, applied, isCaptain });
+      const parsed = parseCSV(csv);
+      const header = parsed.header;
+      const rows = parsed.rows;
+
+      const players = [];
+
+      rows.forEach((row) => {
+        const obj = {};
+        header.forEach((h, i) => (obj[h] = row[i]));
+
+        if (!obj.playername) return;
+
+        players.push({
+          playerId: obj.playerid || "",
+          playerName: obj.playername,
+          role: (obj.role || "BAT").toUpperCase(),
+          realTeam: obj.realteam || "",
+          credits: Number(obj.credits || 0),
+          status: obj.status || "active",
+        });
+      });
+
+      const match = await Match.findById(req.params.matchId);
+      match.players = players;
+      await match.save();
+
+      io.to(`match_${match._id}`).emit("rosterUpdate", {
+        matchId: match._id,
+        players,
+      });
+
+      return res.json({ ok: true, count: players.length });
+    } catch (err) {
+      return res.status(500).json({ error: "Roster upload failed" });
+    }
+  }
+);
+
+// JSON roster
+app.post("/api/admin/matches/:matchId/roster", admin, async (req, res) => {
+  try {
+    const match = await Match.findById(req.params.matchId);
+    match.players = req.body.players || [];
+    await match.save();
+
+    io.to(`match_${match._id}`).emit("rosterUpdate", {
+      matchId: match._id,
+      players: match.players,
+    });
+
+    return res.json({ ok: true });
+  } catch (err) {
+    return res.status(500).json({ error: "Roster save failed" });
+  }
+});
+
+app.get("/api/matches/:matchId/players", async (req, res) => {
+  const match = await Match.findById(req.params.matchId).lean();
+  if (!match) return res.status(404).json({ error: "No match" });
+  return res.json({ ok: true, players: match.players });
+});
+
+// -------------------------
+// CONTESTS
+// -------------------------
+app.post("/api/admin/matches/:matchId/contests", admin, async (req, res) => {
+  const { title, entryFee, maxEntries, perViewerLimit } = req.body;
+  if (!title) return res.status(400).json({ error: "title required" });
+
+  const contest = await Contest.create({
+    matchId: req.params.matchId,
+    title,
+    entryFee,
+    maxEntries,
+    perViewerLimit,
+  });
+
+  return res.json({ ok: true, contest });
+});
+
+// DELETE CONTEST
+app.delete("/api/admin/contests/:contestId", admin, async (req, res) => {
+  const { contestId } = req.params;
+
+  await TeamEntry.deleteMany({ contestId });
+  await Contest.deleteOne({ _id: contestId });
+
+  io.emit("contestDeleted", { contestId });
+
+  return res.json({ ok: true });
+});
+
+app.get("/api/matches/:matchId/contests", async (req, res) => {
+  const contests = await Contest.find({
+    matchId: req.params.matchId,
+    archived: { $ne: true },
+  }).lean();
+
+  return res.json(contests);
+});
+
+// -------------------------
+// TEAM ENTRY (CREATE XI)
+// -------------------------
+app.post("/api/matches/:matchId/teams", async (req, res) => {
+  try {
+    const { matchId } = req.params;
+    const { players, captain, vice, name, viewerName, linkedChannel } = req.body;
+
+    if (!Array.isArray(players) || players.length !== 11)
+      return res.status(400).json({ error: "Team must have 11 players" });
+
+    const team = await Team.create({
+      matchId,
+      players,
+      captain,
+      vice,
+      name,
+      viewerName,
+      linkedChannel,
+    });
+
+    return res.json({ ok: true, team });
+  } catch (err) {
+    return res.status(500).json({ error: "Team creation failed" });
+  }
+});
+
+// -------------------------
+// CONTEST ENTRY
+// -------------------------
+app.post("/api/contests/:contestId/join", async (req, res) => {
+  const { contestId } = req.params;
+  const { viewerName, players, captain } = req.body;
+
+  const contest = await Contest.findById(contestId);
+  if (!contest) return res.status(404).json({ error: "No contest" });
+
+  const entry = await TeamEntry.create({
+    matchId: contest.matchId,
+    contestId,
+    viewerName,
+    players,
+    captain,
+    ip: req.ip,
+  });
+
+  return res.json({ ok: true, entry });
+});
+
+// -------------------------
+// STATS + SCORING ENGINE
+// -------------------------
+function computePoints(stat, isCaptain, isVice) {
+  if (!stat) return 0;
+  let pts = 0;
+
+  pts += stat.runs * 1;
+  pts += stat.fours * 1;
+  pts += stat.sixes * 2;
+  pts += stat.wickets * 25;
+  if (stat.wickets >= 3) pts += 10;
+  pts += stat.maidens * 10;
+  pts += stat.catches * 8;
+  if (stat.mvp) pts += 15;
+
+  if (isCaptain) pts *= 2;
+  if (isVice) pts = Math.round(pts * 1.5);
+
+  return Math.round(pts);
+}
+
+app.post("/api/admin/matches/:matchId/stats", admin, async (req, res) => {
+  const { matchId } = req.params;
+  const { stats } = req.body;
+
+  const match = await Match.findById(matchId);
+  match.stats = stats;
+  await match.save();
+
+  const statMap = {};
+  stats.forEach((s) => {
+    statMap[s.playerName.toUpperCase()] = s;
+  });
+
+  const teams = await Team.find({ matchId });
+
+  for (const t of teams) {
+    let total = 0;
+    t.players.forEach((p) => {
+      const st = statMap[p.toUpperCase()] || {};
+      const isC = p === t.captain;
+      const isV = p === t.vice;
+      total += computePoints(st, isC, isV);
+    });
+
+    await Team.findByIdAndUpdate(t._id, { totalPoints: total });
+  }
+
+  io.to(`match_${matchId}`).emit("matchStatsUpdate", {
+    matchId,
+    stats,
+  });
+
+  io.to(`match_${matchId}`).emit("leaderboardUpdate", { matchId });
+
+  return res.json({ ok: true });
+});
+
+// -------------------------
+// LEADERBOARDS
+// -------------------------
+app.get("/api/matches/:matchId/leaderboard", async (req, res) => {
+  const match = await Match.findById(req.params.matchId).lean();
+  if (!match) return res.status(404).json({ error: "No match" });
+
+  const teams = await Team.find({
+    matchId: match._id,
+    banned: { $ne: true },
+  }).lean();
+
+  const statMap = {};
+  (match.stats || []).forEach((s) => {
+    statMap[s.playerName.toUpperCase()] = s;
+  });
+
+  const board = teams
+    .map((t) => {
+      let total = 0;
+      (t.players || []).forEach((p) => {
+        total += computePoints(
+          statMap[p.toUpperCase()],
+          p === t.captain,
+          p === t.vice
+        );
       });
 
       return {
-        viewerName: e.viewerName,
-        handle: e.handle,
+        teamId: t._id,
+        name: t.name,
+        viewerName: t.viewerName,
         total,
-        breakdown
       };
-    });
+    })
+    .sort((a, b) => b.total - a.total);
 
-    leaderboard.sort((a, b) => b.total - a.total);
-
-    return res.json({
-      match: { id: match._id, name: match.name, date: match.date },
-      leaderboard
-    });
-  } catch (err) {
-    console.error("Leaderboard error:", err);
-    return res.status(500).json({ error: "Failed to get leaderboard" });
-  }
+  return res.json({ ok: true, leaderboard: board });
 });
 
-// Fallback to index.html
-app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
+// -------------------------
+// EXPORT TEAMS (CSV)
+// -------------------------
+app.get("/api/admin/matches/:matchId/export-teams", admin, async (req, res) => {
+  const teams = await Team.find({ matchId: req.params.matchId }).lean();
+  const lines = ["name,players,captain,vice,totalPoints"];
+
+  teams.forEach((t) => {
+    lines.push(
+      `"${t.name}","${t.players.join("|")}","${t.captain}","${t.vice}",${t.totalPoints}`
+    );
+  });
+
+  const csv = lines.join("\n");
+
+  res.header("Content-Type", "text/csv");
+  res.attachment(`match-${req.params.matchId}-teams.csv`);
+  return res.send(csv);
 });
 
-// Start
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-  if (!MONGO) console.log("MONGO_URI not set — running without DB (use .env to set it)");
+// -------------------------
+// HEALTH CHECK
+// -------------------------
+app.get("/api/health", (req, res) => {
+  return res.json({ ok: true, time: new Date() });
 });
+
+// -------------------------
+// START SERVER
+// -------------------------
+server.listen(PORT, () =>
+  console.log(`🚀 SERVER READY at http://localhost:${PORT}`)
+);

@@ -1,144 +1,117 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8"/>
-  <title>Community Cup Fantasy – Submit Team</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <style>
-    body{font-family:system-ui,Arial; background:#050816;color:#f8fafc;margin:0;padding:18px}
-    .card{max-width:540px;margin:12px auto;background:#071022;padding:18px;border-radius:12px;border:1px solid rgba(255,255,255,0.04)}
-    h1{text-align:center;margin:0 0 8px}
-    label{display:block;margin-top:8px;font-size:0.9rem;opacity:0.9}
-    select,input{width:100%;padding:8px;margin-top:6px;border-radius:8px;border:1px solid #273244;background:#020617;color:#f8fafc}
-    button{margin-top:12px;padding:10px 16px;border-radius:999px;border:none;background:linear-gradient(135deg,#ef4444,#f59e0b);color:#111827;font-weight:700;cursor:pointer}
-    .small{font-size:0.85rem;opacity:0.8;margin-top:6px}
-    a.link{color:#facc15;text-decoration:none}
-    .msg{margin-top:10px;color:#ffd;opacity:0.95}
-  </style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Beowulf Community Cup</title>
+
+  <link rel="stylesheet" href="/css/style.css" />
+  <link rel="icon" href="/assets/logo.png" />
 </head>
 <body>
-  <div class="card">
-    <h1>Community Cup Fantasy</h1>
-    <p class="small">Pick 5 players and a captain. Use the match dropdown to load players (prevents typos).</p>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <img src="/assets/logo.png" alt="logo" class="logo" onerror="this.style.display='none'"/>
+        <div>
+          <h1>Beowulf</h1>
+          <p class="sub">Community Cup</p>
+        </div>
+      </div>
 
-    <label>Match</label>
-    <select id="matchSelect"></select>
+      <nav class="nav">
+        <a href="/dashboard.html" class="nav-link">Dashboard</a>
+        <a href="/create-team.html" class="nav-link">Create Team</a>
+        <a href="/contests.html" class="nav-link">Contests</a>
+        <a href="/leaderboard.html" class="nav-link">Leaderboard</a>
+        <a href="/admin/matches.html" class="nav-link">Admin</a>
+      </nav>
 
-    <label>Your name / nickname</label>
-    <input id="viewerName" placeholder="e.g. GamingEmpire" />
+      <div class="sidebar-footer muted">Live • T10 • Viewer-owned</div>
+    </aside>
 
-    <label>Your handle (YouTube/Discord) - optional</label>
-    <input id="handle" placeholder="@yourhandle (optional)" />
+    <main class="main">
+      <header class="main-head">
+        <div>
+          <h2>Beowulf Community Cup</h2>
+          <div class="crumbs">Fixtures • Join contests • Create teams</div>
+        </div>
+        <div class="header-actions">
+          <a class="link" href="/dashboard.html">Dashboard</a>
+          <a class="link" href="/profile.html">Profile</a>
+        </div>
+      </header>
 
-    <label>Player 1</label>
-    <select id="p1"></select>
+      <!-- HERO -->
+      <section class="hero card">
+        <div class="hero-left">
+          <h3>Bring your viewers into the action</h3>
+          <p class="muted">
+            Build fantasy teams, run contests, and show off viewer-owned squads
+            directly on stream. Fully real-time scoring & leaderboards.
+          </p>
 
-    <label>Player 2</label>
-    <select id="p2"></select>
+          <div class="hero-actions">
+            <a class="btn-primary" href="/create-team.html">Create Team</a>
+            <a class="btn-ghost" href="/contests.html">Browse Contests</a>
+          </div>
+        </div>
 
-    <label>Player 3</label>
-    <select id="p3"></select>
+        <div class="hero-right">
+          <div class="status-pill" id="health">Checking server…</div>
+        </div>
+      </section>
 
-    <label>Player 4</label>
-    <select id="p4"></select>
+      <!-- UPCOMING MATCHES -->
+      <section class="grid">
+        <article class="card" id="upcomingMatches">
+          <h4>Upcoming Matches</h4>
+          <div class="muted">Loading matches…</div>
+        </article>
+      </section>
 
-    <label>Player 5</label>
-    <select id="p5"></select>
-
-    <label>Captain (select one of above)</label>
-    <select id="captain"></select>
-
-    <button id="submitBtn">Submit Team</button>
-    <div id="msg" class="msg"></div>
-
-    <p class="small">Scoring: Run 1 • Four +1 • Six +2 • Wicket 20 • Maiden 10 • Catch 10 • Captain ×2</p>
-    <p class="small"><a class="link" href="/leaderboard.html">View Leaderboard</a> • <a class="link" href="/admin.html">Admin</a></p>
+      <footer class="footer muted">© Beowulf Community Cup</footer>
+    </main>
   </div>
 
+  <script src="/js/app.js"></script>
+
   <script>
-    async function loadMatches() {
-      const sel = document.getElementById("matchSelect");
-      sel.innerHTML = '<option value="">Loading matches...</option>';
+    // Small initial loader: health + upcoming matches
+    (async function() {
+      const status = document.getElementById('health');
       try {
-        const res = await fetch('/api/matches');
-        const matches = await res.json();
-        sel.innerHTML = '';
-        if (!Array.isArray(matches) || matches.length === 0) {
-          sel.innerHTML = '<option value="">No matches (ask admin)</option>';
+        const r = await fetch('/api/health');
+        const j = await r.json();
+        status.textContent = j.ok ? 'Server OK' : 'Server error';
+      } catch (e) {
+        status.textContent = 'Offline';
+      }
+
+      const box = document.getElementById('upcomingMatches');
+      try {
+        const r = await fetch('/api/matches');
+        const matches = await r.json();
+
+        if (!matches || matches.length === 0) {
+          box.innerHTML = "<div class='muted'>No matches scheduled</div>";
           return;
         }
-        matches.forEach(m => {
-          const opt = document.createElement('option');
-          opt.value = m._id;
-          opt.textContent = m.name;
-          sel.appendChild(opt);
-        });
-        // load players for first match
-        loadPlayersForMatch(sel.value);
-      } catch (e) {
-        console.error(e);
-        sel.innerHTML = '<option value="">Failed to load matches</option>';
+
+        box.innerHTML = `
+          <h4>Upcoming Matches</h4>
+          ${matches.slice(0, 6).map(m => `
+            <div class="match-row">
+              <strong>${m.name}</strong>
+              <div class="muted">${m.teamA || ''} vs ${m.teamB || ''}</div>
+              <div class="muted small">${m.startTime ? new Date(m.startTime).toLocaleString() : ''}</div>
+            </div>
+          `).join('')}
+        `;
+      } catch (err) {
+        box.innerHTML = "<div class='muted'>Failed to load matches</div>";
       }
-    }
-
-    async function loadPlayersForMatch(matchId) {
-      const ids = ['p1','p2','p3','p4','p5','captain'];
-      ids.forEach(id => document.getElementById(id).innerHTML = '<option value="">Loading...</option>');
-      if (!matchId) {
-        ids.forEach(id => document.getElementById(id).innerHTML = '<option value="">Select a match first</option>');
-        return;
-      }
-      try {
-        const res = await fetch(`/debug/match-data/${matchId}`);
-        const data = await res.json();
-        const players = (data.match && data.match.stats) ? data.match.stats.map(s => s.playerName) : [];
-        const opts = players.length ? players.map(p => `<option value="${p}">${p}</option>`).join('') : '<option value="">No players in stats</option>';
-        ids.forEach(id => document.getElementById(id).innerHTML = opts);
-      } catch (e) {
-        console.error(e);
-        ids.forEach(id => document.getElementById(id).innerHTML = '<option value="">Failed</option>');
-      }
-    }
-
-    document.getElementById('matchSelect').addEventListener('change', (e) => loadPlayersForMatch(e.target.value));
-
-    document.getElementById('submitBtn').addEventListener('click', async () => {
-      const matchId = document.getElementById('matchSelect').value;
-      const viewerName = document.getElementById('viewerName').value.trim();
-      const handle = document.getElementById('handle').value.trim();
-      const players = [
-        document.getElementById('p1').value,
-        document.getElementById('p2').value,
-        document.getElementById('p3').value,
-        document.getElementById('p4').value,
-        document.getElementById('p5').value
-      ].filter(p => p);
-      const captain = document.getElementById('captain').value;
-
-      const msg = document.getElementById('msg');
-      msg.textContent = '';
-      if (!matchId) { msg.textContent = 'Select a match.'; return; }
-      if (!viewerName || players.length !== 5 || !captain) { msg.textContent = 'Fill name, 5 players and captain.'; return; }
-
-      try {
-        const res = await fetch(`/api/matches/${matchId}/entries`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ viewerName, handle, players, captain })
-        });
-        const data = await res.json();
-        if (!res.ok) {
-          msg.textContent = data.error || 'Submission failed';
-        } else {
-          msg.textContent = 'Team submitted!';
-        }
-      } catch (e) {
-        console.error(e);
-        msg.textContent = 'Network error';
-      }
-    });
-
-    loadMatches();
+    })();
   </script>
 </body>
 </html>

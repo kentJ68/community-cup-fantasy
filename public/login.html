@@ -1,0 +1,41 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>Login - Community Cup</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <style>
+    body { font-family: Arial; background:#071021; color:#fff; padding:20px; }
+    .card { background:#041225; padding:20px; border-radius:10px; max-width:400px; margin:0 auto; }
+    button { padding:10px 14px; border-radius:6px; border:0; background:#ffd166; color:#000; font-weight:bold; cursor:pointer; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>Login</h2>
+
+    <div id="g_id_onload"
+         data-client_id="423596336574-494a3jakq4j47pomphrjlc48pi41ntuq.apps.googleusercontent.com"
+         data-auto_prompt="false"></div>
+    <div id="googleButton"></div>
+
+    <script>
+      window.onload = function(){
+        google.accounts.id.initialize({ client_id: "423596336574-494a3jakq4j47pomphrjlc48pi41ntuq.apps.googleusercontent.comnode server.js", callback: handleGoogleResponse });
+        google.accounts.id.renderButton(document.getElementById("googleButton"), { theme: "outline", size: "large", width: 300 });
+      }
+      async function handleGoogleResponse(response) {
+        const r = await fetch("/api/auth/google-idtoken", { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({ id_token: response.credential }) });
+        const j = await r.json();
+        if (j.ok) { localStorage.setItem("token", j.token); window.location = "/dashboard.html"; }
+        else alert("Google Login Failed: " + j.error);
+      }
+    </script>
+
+    <hr style="margin:20px 0; border-color:#333">
+    <div>Email / Password login</div>
+    <a href="/register.html"><button style="margin-top:8px">Register</button></a>
+  </div>
+</body>
+</html>
