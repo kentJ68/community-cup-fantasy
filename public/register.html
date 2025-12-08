@@ -3,39 +3,43 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Login — Beowulf</title>
+  <title>Register — Beowulf</title>
   <link rel="stylesheet" href="/css/style.css" />
 </head>
 <body>
   <div class="app">
     <script src="/js/layout.js"></script>
 
-    <main class="main" style="max-width:560px;margin:28px auto;">
+    <main class="main" style="max-width:640px;margin:28px auto;">
       <section class="card">
-        <h2>Login</h2>
-        <p class="muted">Enter your credentials to sign in.</p>
+        <h2>Create account</h2>
+        <p class="muted">Register to create teams and join contests.</p>
 
         <div style="margin-top:12px;">
+          <label class="muted small">Display name</label>
+          <input id="displayName" class="input" placeholder="Your name" />
+        </div>
+
+        <div style="margin-top:10px;">
           <label class="muted small">Email</label>
           <input id="email" class="input" placeholder="you@example.com" type="email" />
         </div>
 
         <div style="margin-top:10px;">
           <label class="muted small">Password</label>
-          <input id="password" class="input" placeholder="password" type="password" />
+          <input id="password" class="input" placeholder="Choose a password" type="password" />
         </div>
 
         <div style="margin-top:14px;display:flex;gap:8px;align-items:center;">
-          <button id="loginBtn" class="btn-primary">Login</button>
-          <a href="/register.html" class="btn-ghost">Register</a>
-          <div id="loginMsg" class="muted small" style="margin-left:auto"></div>
+          <button id="registerBtn" class="btn-primary">Register</button>
+          <a href="/login.html" class="btn-ghost">Login</a>
+          <div id="regMsg" class="muted small" style="margin-left:auto"></div>
         </div>
       </section>
     </main>
   </div>
 
 <script>
-  // Prefer App helpers if present
   function setLocalToken(token){
     if (window.App && typeof App.setToken === 'function') {
       App.setToken(token);
@@ -44,56 +48,54 @@
     }
   }
 
-  async function callLogin(email, password) {
+  async function callRegister(displayName, email, password) {
     try {
-      // Use App.post if available (it attaches headers safely)
       if (window.App && typeof App.post === 'function') {
-        const r = await App.post('/api/auth/login', { email, password });
+        const r = await App.post('/api/auth/register', { displayName, email, password });
         return r;
       } else {
-        const res = await fetch('/api/auth/login', {
+        const res = await fetch('/api/auth/register', {
           method: 'POST',
           headers: { 'Content-Type':'application/json' },
-          body: JSON.stringify({ email, password })
+          body: JSON.stringify({ displayName, email, password })
         });
         const j = await res.json();
-        return { ok: res.ok && (j.ok || true), data: j, ...(j) };
+        return { ok: res.ok && (j.ok || true), data: j, ...j };
       }
     } catch (err) {
       return { ok:false, error: err.message || 'Network' };
     }
   }
 
-  document.getElementById('loginBtn').addEventListener('click', async () => {
+  document.getElementById('registerBtn').addEventListener('click', async () => {
+    const displayName = document.getElementById('displayName').value.trim();
     const email = document.getElementById('email').value.trim();
     const password = document.getElementById('password').value;
 
-    const msg = document.getElementById('loginMsg');
+    const msg = document.getElementById('regMsg');
     msg.textContent = '';
 
-    if (!email || !password) { msg.textContent = 'Enter email and password'; return; }
+    if (!email || !password) { msg.textContent = 'Email and password required'; return; }
 
-    msg.textContent = 'Signing in…';
+    msg.textContent = 'Registering…';
 
-    const res = await callLogin(email, password);
-    // If using App.post, it returns safeJson wrapper: { ok, data }
+    const res = await callRegister(displayName, email, password);
     const payload = res?.data || res;
+
     if (res.ok && payload && (payload.ok || payload.token)) {
       const token = payload.token || payload.data?.token;
       setLocalToken(token);
-      msg.textContent = 'Login successful';
-      setTimeout(()=> window.location = '/', 500);
+      msg.textContent = 'Registered';
+      setTimeout(()=> window.location = '/', 700);
       return;
     }
 
-    // parse error
-    const errMsg = payload?.error || payload?.message || res?.error || 'Login failed';
+    const errMsg = payload?.error || payload?.message || res?.error || 'Registration failed';
     msg.textContent = errMsg;
   });
 
-  // allow Enter key
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') document.getElementById('loginBtn').click();
+    if (e.key === 'Enter') document.getElementById('registerBtn').click();
   });
 </script>
 </body>

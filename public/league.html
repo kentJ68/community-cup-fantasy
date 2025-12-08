@@ -84,12 +84,27 @@
 
   let TEAMS = [];
 
+  // normalize logo selection: prefer team.logoUrl, then team.logo, else computed path, else default
+  function pickLogoForTeam(team) {
+    // 1) explicit CDN/URL provided by server
+    if (team.logoUrl && String(team.logoUrl).trim()) return team.logoUrl;
+
+    // 2) legacy `logo` field (some codebases use this)
+    if (team.logo && String(team.logo).trim()) return team.logo;
+
+    // 3) try a predictable local assets path derived from shortName/name
+    const baseName = (team.shortName || team.name || '').toLowerCase().replace(/\s+/g,'').replace(/[^a-z0-9_-]/g, '');
+    if (baseName) return `/assets/teams/${baseName}.png`;
+
+    // 4) fallback to a generic default
+    return '/assets/logo.png';
+  }
+
   function renderTeams(filterQ = '', role = '') {
     const container = document.getElementById('teamsContainer');
     const q = (filterQ || '').toLowerCase().trim();
     const list = TEAMS.filter(t => {
       if (role) {
-        // include if any player has that role OR team players include role
         const hasRole = (t.players || []).some(p => (p.role||'').toUpperCase() === role.toUpperCase());
         if (!hasRole) return false;
       }
@@ -100,17 +115,17 @@
 
     if (!list.length) {
       container.innerHTML = '<div class="no-teams">No teams match your filters.</div>';
-      renderStandings(); // refresh standings panel too
+      renderStandings();
       return;
     }
 
     container.innerHTML = list.map(team => {
-      const logo = team.logo || `/assets/teams/${(team.shortName||team.name||'').toLowerCase().replace(/\s+/g,'')}.png`;
+      const logoSrc = pickLogoForTeam(team);
       const playersCount = (team.players || []).length;
       const points = team.seasonPoints != null ? team.seasonPoints : 0;
       return `
         <div class="team-card card" data-team-id="${team._id || ''}">
-          <img class="team-logo" src="${escapeHtml(logo)}" onerror="this.src='/assets/logo.png'"/>
+          <img class="team-logo" src="${escapeHtml(logoSrc)}" loading="lazy" onerror="this.onerror=null;this.src='/assets/logo.png'"/>
           <div class="team-meta">
             <div style="display:flex;align-items:center;gap:8px;">
               <div>
@@ -158,12 +173,15 @@
   function renderStandings() {
     const box = document.getElementById('standings');
     if (!TEAMS || TEAMS.length === 0) { box.innerHTML = '<div class="muted">No data</div>'; return; }
-    // sort by seasonPoints desc
     const sorted = [...TEAMS].sort((a,b)=> (b.seasonPoints||0) - (a.seasonPoints||0));
-    box.innerHTML = sorted.map((t,i) => `
+    box.innerHTML = sorted.map((t,i) => {
+      const logoSrc = pickLogoForTeam(t);
+      return `
       <div class="stand-row">
         <div style="display:flex;gap:8px;align-items:center;">
-          <div style="width:32px;height:32px;border-radius:6px;overflow:hidden;"><img src="${escapeHtml(t.logo||'/assets/logo.png')}" style="width:100%;height:100%;object-fit:cover" onerror="this.src='/assets/logo.png'"/></div>
+          <div style="width:32px;height:32px;border-radius:6px;overflow:hidden;">
+            <img src="${escapeHtml(logoSrc)}" style="width:100%;height:100%;object-fit:cover" onerror="this.onerror=null;this.src='/assets/logo.png'"/>
+          </div>
           <div style="min-width:120px;">${escapeHtml(t.name)}</div>
         </div>
         <div style="text-align:right;min-width:70px;">
@@ -171,7 +189,7 @@
           <div class="muted small">#${i+1}</div>
         </div>
       </div>
-    `).join('');
+    `}).join('');
   }
 
   function escapeHtml(s) {
@@ -183,15 +201,18 @@
     const container = document.getElementById('teamsContainer');
     container.innerHTML = '<div class="muted">Loading teams…</div>';
     try {
-      // try public endpoint first, then debug fallback
       let j = await apiGet('/api/league/teams').catch(()=>null);
       if (!j || (!j.ok && !Array.isArray(j.teams))) {
         j = await apiGet('/api/debug/league-teams').catch(()=>null);
       }
       const teams = (j && j.teams) ? j.teams : (Array.isArray(j) ? j : []);
       TEAMS = teams.map(t => {
-        // normalize
-        return Object.assign({ seasonPoints: t.seasonPoints || 0 }, t);
+        // normalize: prefer server field names logoUrl or logo, but keep both for safety
+        return Object.assign({
+          seasonPoints: t.seasonPoints || 0,
+          logoUrl: t.logoUrl || t.logo || '', // keep fields so pickLogoForTeam can use them
+          logo: t.logo || t.logoUrl || ''
+        }, t);
       });
       renderTeams(document.getElementById('searchBox').value, document.getElementById('roleFilter').value);
     } catch (err) {

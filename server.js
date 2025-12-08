@@ -1,6 +1,7 @@
 // ===============================
 // server.js – FULL FANTASY ENGINE
-// Version B (Dream11-style)
+// Version B (Dream11-style) — FINAL PATCHED
+// Includes: join improvements + contests counts
 // ===============================
 
 require("dotenv").config();
@@ -41,7 +42,7 @@ const Match = require("./models/Match");
 const Team = require("./models/Team");
 const Contest = require("./models/Contest");
 const TeamEntry = require("./models/TeamEntry");
-const LeagueTeam = require("./models/LeagueTeam"); // <-- only require once
+const LeagueTeam = require("./models/LeagueTeam");
 
 // -------------------------
 // Express + Server
@@ -318,7 +319,6 @@ app.get("/api/matches/:matchId", async (req, res) => {
 // ROSTER UPLOAD (CSV + JSON)
 // -------------------------
 
-// CSV parser
 function parseCSV(text) {
   text = text.replace(/^\uFEFF/, "").replace(/\r\n/g, "\n").trim();
   if (!text) return { header: [], rows: [] };
@@ -376,7 +376,6 @@ app.post(
   }
 );
 
-// JSON roster
 app.post("/api/admin/matches/:matchId/roster", admin, async (req, res) => {
   try {
     const match = await Match.findById(req.params.matchId);
@@ -403,6 +402,7 @@ app.get("/api/matches/:matchId/players", async (req, res) => {
 // -------------------------
 // CONTESTS
 // -------------------------
+// Admin create contest
 app.post("/api/admin/matches/:matchId/contests", admin, async (req, res) => {
   const { title, entryFee, maxEntries, perViewerLimit } = req.body;
   if (!title) return res.status(400).json({ error: "title required" });
@@ -418,7 +418,7 @@ app.post("/api/admin/matches/:matchId/contests", admin, async (req, res) => {
   return res.json({ ok: true, contest });
 });
 
-// DELETE CONTEST
+// Delete contest
 app.delete("/api/admin/contests/:contestId", admin, async (req, res) => {
   const { contestId } = req.params;
 
@@ -430,13 +430,41 @@ app.delete("/api/admin/contests/:contestId", admin, async (req, res) => {
   return res.json({ ok: true });
 });
 
+// GET contests for match (with entry counts and optional myEntries)
 app.get("/api/matches/:matchId/contests", async (req, res) => {
-  const contests = await Contest.find({
-    matchId: req.params.matchId,
-    archived: { $ne: true },
-  }).lean();
+  try {
+    const matchId = req.params.matchId;
+    const contests = await Contest.find({ matchId, archived: { $ne: true } }).lean();
 
-  return res.json(contests);
+    if (!contests || contests.length === 0) return res.json([]);
+
+    // Try to determine viewerName from JWT if present
+    let viewerName = null;
+    const auth = (req.headers.authorization || "").split(" ");
+    if (auth.length === 2 && auth[0] === "Bearer") {
+      const pl = verifyJwt(auth[1]);
+      if (pl && pl.id) {
+        try {
+          const user = await User.findById(pl.id).lean();
+          if (user && user.displayName) viewerName = user.displayName;
+        } catch {}
+      }
+    }
+
+    const contestsWithCounts = await Promise.all(contests.map(async (c) => {
+      const entryCount = await TeamEntry.countDocuments({ contestId: c._id });
+      let myEntries = 0;
+      if (viewerName) {
+        myEntries = await TeamEntry.countDocuments({ contestId: c._id, viewerName });
+      }
+      return { ...c, entryCount, myEntries };
+    }));
+
+    return res.json(contestsWithCounts);
+  } catch (err) {
+    console.error("Failed to load contests with counts:", err);
+    return res.status(500).json({ error: "Failed to load contests" });
+  }
 });
 
 // -------------------------
@@ -466,27 +494,96 @@ app.post("/api/matches/:matchId/teams", async (req, res) => {
   }
 });
 
-// -------------------------
-// CONTEST ENTRY
-// -------------------------
-app.post("/api/contests/:contestId/join", async (req, res) => {
-  const { contestId } = req.params;
-  const { viewerName, players, captain } = req.body;
+// GET team for a viewer
+app.get("/api/matches/:matchId/team/:viewerName", async (req, res) => {
+  try {
+    const { matchId, viewerName } = req.params;
 
-  const contest = await Contest.findById(contestId);
-  if (!contest) return res.status(404).json({ error: "No contest" });
+    if (!viewerName) return res.status(400).json({ ok: false, error: "viewerName required" });
 
-  const entry = await TeamEntry.create({
-    matchId: contest.matchId,
-    contestId,
-    viewerName,
-    players,
-    captain,
-    ip: req.ip,
-  });
+    const team = await Team.findOne({ matchId, viewerName }).lean();
 
-  return res.json({ ok: true, entry });
+    if (!team) return res.json({ ok: false, team: null });
+
+    return res.json({ ok: true, team });
+  } catch (err) {
+    return res.status(500).json({ ok: false, error: "Failed to fetch team" });
+  }
 });
+
+// -------------------------
+// CONTEST ENTRY (updated robustly)
+// -------------------------
+// POST /api/contests/:contestId/join
+app.post("/api/contests/:contestId/join", async (req, res) => {
+  try {
+    const { contestId: contestIdParam } = req.params;
+    const { viewerName } = req.body;
+
+    if (!viewerName) return res.status(400).json({ error: "viewerName required" });
+
+    // Load contest (this gives us contest._id as ObjectId and contest.matchId)
+    const contest = await Contest.findById(contestIdParam);
+    if (!contest) return res.status(404).json({ error: "No contest" });
+
+    // Find saved team by viewerName + matchId
+    const team = await Team.findOne({ matchId: contest.matchId, viewerName });
+    if (!team) {
+      console.warn(`Join attempt failed: no team for viewer=${viewerName} match=${contest.matchId}`);
+      return res.status(400).json({ error: "Create a team first" });
+    }
+
+    // enforce perViewerLimit
+    const currentEntries = await TeamEntry.countDocuments({
+      contestId: contest._id,       // use ObjectId
+      viewerName
+    });
+
+    if (contest.perViewerLimit && currentEntries >= (contest.perViewerLimit || 1)) {
+      return res.status(400).json({ error: `Entry limit reached for viewer (${contest.perViewerLimit})` });
+    }
+
+    // enforce maxEntries
+    if (contest.maxEntries) {
+      const totalEntries = await TeamEntry.countDocuments({ contestId: contest._id });
+      if (totalEntries >= contest.maxEntries) {
+        return res.status(400).json({ error: "Contest is full" });
+      }
+    }
+
+    // Prevent exact duplicate by teamId + contestId
+    const duplicate = await TeamEntry.findOne({
+      contestId: contest._id,
+      teamId: team._id
+    });
+    if (duplicate) {
+      return res.status(400).json({ error: "This team is already joined in the contest" });
+    }
+
+    // Create entry using ObjectIds (contest._id and contest.matchId are ObjectId already)
+    const entry = await TeamEntry.create({
+      matchId: contest.matchId,   // ObjectId
+      contestId: contest._id,     // ObjectId
+      viewerName,
+      players: team.players,
+      captain: team.captain,
+      vice: team.vice,
+      teamId: team._id,
+      ip: req.ip,
+      createdAt: new Date()
+    });
+
+    console.log(`Contest join: viewer=${viewerName} contest=${contest._id} team=${team._id}`);
+
+    io.to(`match_${String(contest.matchId)}`).emit("contestEntryUpdate", { contestId: String(contest._id), entryId: String(entry._id) });
+
+    return res.json({ ok: true, entry });
+  } catch (err) {
+    console.error("Join failed:", err);
+    return res.status(500).json({ error: "Join failed" });
+  }
+});
+
 
 // -------------------------
 // STATS + SCORING ENGINE

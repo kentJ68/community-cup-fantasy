@@ -316,3 +316,138 @@
   });
 
 })(window);
+<script src="/socket.io/socket.io.js"></script>
+<script>
+(async function(){
+  // Utils
+  const el = id => document.getElementById(id);
+  function escapeHtml(s){ if (s===null||s===undefined) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  // -------------- determine matchId (many fallbacks)
+  function findMatchId() {
+    // 1) window global
+    if (window.CURRENT_MATCH_ID) return window.CURRENT_MATCH_ID;
+    // 2) body data attribute
+    if (document.body && document.body.dataset && document.body.dataset.matchId) return document.body.dataset.matchId;
+    // 3) roster container data attribute
+    const rc = document.getElementById('rosterContainer');
+    if (rc && rc.dataset && rc.dataset.matchId) return rc.dataset.matchId;
+    // 4) element with id matchId (hidden input)
+    const midInput = document.getElementById('matchId') || document.querySelector('input[name="matchId"]');
+    if (midInput && midInput.value) return midInput.value;
+    // 5) try to infer from URL (common patterns)
+    try {
+      const m = location.pathname.match(/\/matches\/([0-9a-fA-F]{24})/);
+      if (m) return m[1];
+    } catch(e){}
+    // 6) not found
+    return null;
+  }
+
+  const matchId = findMatchId();
+  if (!matchId) {
+    console.warn('Roster script: matchId not found. You can set window.CURRENT_MATCH_ID or <div id="rosterContainer" data-match-id="...">');
+    // still attempt to render nothing
+  }
+
+  // -------------- render function
+  function renderRoster(players){
+    const container = el('rosterContainer');
+    if (!container) return;
+    if (!Array.isArray(players) || players.length === 0) {
+      container.innerHTML = '<div class="muted">No players</div>';
+      return;
+    }
+
+    // simple grid HTML (customize to your CSS)
+    container.innerHTML = players.map(p => {
+      const credits = (p.credits || p.credit || 0);
+      const role = (p.role || '').toUpperCase();
+      const team = p.realTeam || p.team || '';
+      return `
+        <div class="player-card" style="padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.03);margin-bottom:8px;">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <div style="width:44px;height:44px;border-radius:6px;background:#f3f3f3;display:flex;align-items:center;justify-content:center;font-weight:700">${escapeHtml(role.slice(0,3))}</div>
+            <div style="flex:1;">
+              <div style="font-weight:700">${escapeHtml(p.playerName || p.name || '(no name)')}</div>
+              <div class="muted small">${escapeHtml(team)} • ${escapeHtml(role)} • ${credits} cr</div>
+            </div>
+            <div style="text-align:right;">
+              <div class="muted small">${escapeHtml(p.status || '')}</div>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // -------------- load roster from API
+  async function loadRoster() {
+    if (!matchId) return;
+    try {
+      const r = await fetch(`/api/matches/${matchId}/players`);
+      if (!r.ok) {
+        console.warn('Roster fetch failed', r.status);
+        el('rosterContainer').innerHTML = '<div class="muted">Failed to load roster</div>';
+        return;
+      }
+      const j = await r.json();
+      if (!j || !j.ok && !Array.isArray(j.players)) {
+        // older route may return players directly
+        const players = j.players || j;
+        renderRoster(players || []);
+        return;
+      }
+      const players = j.players || [];
+      renderRoster(players);
+    } catch (err) {
+      console.error('loadRoster error', err);
+      if (el('rosterContainer')) el('rosterContainer').innerHTML = '<div class="muted">Roster load error</div>';
+    }
+  }
+
+  // initial load
+  loadRoster();
+
+  // -------------- socket.io: join room and listen for rosterUpdate
+  try {
+    if (typeof io === 'undefined') {
+      console.warn('socket.io not loaded (io undefined). Include /socket.io/socket.io.js on page.');
+    } else {
+      const socket = io();
+      if (matchId) {
+        socket.emit('joinMatch', matchId);
+        console.log('Joined socket room match_' + matchId);
+      }
+
+      socket.on('connect', () => {
+        console.log('socket connected', socket.id);
+        if (matchId) socket.emit('joinMatch', matchId);
+      });
+
+      socket.on('rosterUpdate', (payload) => {
+        try {
+          if (!payload) return;
+          // If server emitted globally, payload.matchId helps filter
+          if (payload.matchId && matchId && payload.matchId !== matchId) return;
+          const players = payload.players || payload || [];
+          console.log('rosterUpdate received', payload);
+          // reload from server (authoritative) or render payload.players directly
+          if (Array.isArray(players) && players.length) {
+            renderRoster(players);
+          } else {
+            loadRoster();
+          }
+        } catch (e) { console.error('rosterUpdate handler error', e); }
+      });
+
+      socket.on('disconnect', () => console.log('socket disconnected'));
+    }
+  } catch(e){
+    console.warn('socket attach error', e);
+  }
+
+  // expose for debugging
+  window.__reloadRoster = loadRoster;
+})();
+</script>

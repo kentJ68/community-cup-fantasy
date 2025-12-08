@@ -4,170 +4,185 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Contests • Beowulf Fantasy League</title>
-  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    body { background:#0f1113; color:#e6eef3; font-family: Arial, sans-serif; padding:20px; }
+    .card { background:#0b0c0d; border:1px solid #1f2a33; padding:12px 16px; border-radius:8px; margin-bottom:12px; }
+    .muted { color:#93b2bd; }
+    .contest-row { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:10px 0; border-bottom:1px dashed rgba(255,255,255,0.02); }
+    .contest-actions { display:flex; gap:8px; align-items:center; }
+    button { padding:8px 12px; border-radius:6px; border:none; cursor:pointer; }
+    button.primary { background:#1f8b7a; color:white; }
+    .small { font-size:13px; color:#bcdbe0; }
+    .badge { background:#111827; padding:4px 8px; border-radius:999px; font-size:12px; color:#a8d1c9; }
+  </style>
 </head>
-
 <body>
 
-<!-- Global Layout System -->
-<script src="/js/layout.js"></script>
-
-<main class="main">
-
   <h2>Contests</h2>
-  <p class="muted">Join a contest and compete with other players in the selected match.</p>
+  <p class="muted">Join contests for the selected match.</p>
 
-  <!-- SELECT MATCH -->
-  <section class="card">
-    <label>Select Match</label>
-    <select id="matchSelect" class="input"></select>
-  </section>
+  <div class="card">
+    <label for="matchSelect">Select Match</label>
+    <select id="matchSelect" style="width:100%; padding:8px; margin-top:8px;">
+      <option>Loading matches…</option>
+    </select>
+  </div>
 
-  <!-- CONTEST LIST -->
-  <section class="card">
+  <div class="card" id="contestsCard">
     <h3>Available Contests</h3>
-    <div id="contestList" class="muted">Choose a match</div>
-  </section>
-
-</main>
-
+    <div id="contestList" class="muted">Select a match to load contests.</div>
+  </div>
 
 <script>
-// ---------------------------
-// Load all matches
-// ---------------------------
-(async function loadMatches() {
-  try {
-    const r = await fetch('/api/matches');
-    const matches = await r.json();
+(async function init() {
+  const matchSelect = document.getElementById('matchSelect');
+  const contestList = document.getElementById('contestList');
 
-    const box = document.getElementById('matchSelect');
-    if (!matches.length) {
-      box.innerHTML = "<option>No matches</option>";
+  async function loadMatches() {
+    try {
+      const r = await fetch('/api/matches');
+      const matches = await r.json();
+      if (!matches || !matches.length) {
+        matchSelect.innerHTML = '<option>No matches</option>';
+        return;
+      }
+      matchSelect.innerHTML = matches.map(m => `<option value="${m._id}">${m.name}</option>`).join('');
+      // load contests for first
+      loadContests(matches[0]._id);
+      matchSelect.addEventListener('change', e => loadContests(e.target.value));
+    } catch (err) {
+      console.error('loadMatches error', err);
+      matchSelect.innerHTML = '<option>Error loading matches</option>';
+    }
+  }
+
+  async function getAuthHeader() {
+    const token = localStorage.getItem('token');
+    return token ? { Authorization: 'Bearer ' + token } : {};
+  }
+
+  async function loadContests(matchId) {
+    contestList.innerHTML = 'Loading contests…';
+    try {
+      const headers = await getAuthHeader();
+      const r = await fetch(`/api/matches/${matchId}/contests`, { headers });
+      const contests = await r.json();
+      if (!contests || !contests.length) {
+        contestList.innerHTML = '<div class="muted">No contests for this match.</div>';
+        return;
+      }
+
+      contestList.innerHTML = '';
+      contests.forEach(c => {
+        const div = document.createElement('div');
+        div.className = 'contest-row';
+        div.innerHTML = `
+          <div>
+            <div style="font-weight:700">${c.title}</div>
+            <div class="small muted">Entry: ${c.entryFee || 0} • Max: ${c.maxEntries || '—'}</div>
+          </div>
+          <div class="contest-actions">
+            <div class="badge">Entries: <strong id="count_${c._id}">${c.entryCount ?? 0}</strong></div>
+            <div class="small" style="margin-right:6px">${c.myEntries ? 'You: ' + c.myEntries : ''}</div>
+            <button class="primary" id="join_${c._id}">Join</button>
+          </div>
+        `;
+        contestList.appendChild(div);
+
+        const btn = div.querySelector(`#join_${c._id}`);
+        btn.addEventListener('click', () => joinContest(c._id, matchId));
+      });
+
+    } catch (err) {
+      console.error('loadContests error', err);
+      contestList.innerHTML = '<div class="muted">Failed to load contests.</div>';
+    }
+  }
+
+  // Helper to get logged-in displayName
+  async function getMyDisplayName() {
+    const token = localStorage.getItem('token');
+    if (!token) return null;
+    try {
+      const res = await fetch('/api/me', { headers: { Authorization: 'Bearer ' + token }});
+      if (!res.ok) return null;
+      const j = await res.json();
+      return j?.user?.displayName || null;
+    } catch (err) {
+      console.error('getMyDisplayName', err);
+      return null;
+    }
+  }
+
+  // Check if user has a team for the match (uses per-viewer lookup)
+  async function checkIfUserHasTeam(matchId) {
+    try {
+      const myName = await getMyDisplayName();
+      if (!myName) return false;
+      const res = await fetch(`/api/matches/${matchId}/team/${encodeURIComponent(myName)}`);
+      if (!res.ok) {
+        const t = await res.text().catch(()=>'<no body>');
+        console.warn('team lookup non-ok', res.status, t);
+        return false;
+      }
+      const j = await res.json();
+      return !!(j && j.ok && j.team);
+    } catch (err) {
+      console.error('checkIfUserHasTeam', err);
+      return false;
+    }
+  }
+
+  // Join contest (uses viewerName; refreshes contest list on success)
+  async function joinContest(contestId, matchId) {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      alert('Please login before joining a contest.');
       return;
     }
 
-    box.innerHTML = matches.map(m => `
-      <option value="${m._id}">${m.name}</option>
-    `).join("");
+    const myName = await getMyDisplayName();
+    if (!myName) {
+      alert('Could not get your display name. Re-login and try again.');
+      return;
+    }
 
-    loadContests(matches[0]._id);
+    const hasTeam = await checkIfUserHasTeam(matchId);
+    if (!hasTeam) {
+      if (confirm('You must create a team to join this contest. Create now?')) {
+        window.location.href = `/create-team.html?matchId=${encodeURIComponent(matchId)}&returnTo=contest_${encodeURIComponent(contestId)}`;
+      }
+      return;
+    }
 
-    box.addEventListener("change", e => loadContests(e.target.value));
+    try {
+      const payload = { viewerName: myName };
+      const r = await fetch(`/api/contests/${contestId}/join`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const j = await r.json().catch(()=>({ error: 'invalid json' }));
 
-  } catch (err) {
-    console.error(err);
+      if (r.ok && j.ok) {
+        alert('Joined contest successfully!');
+        // refresh contests so entryCount/myEntries update
+        await loadContests(matchId);
+        return;
+      } else {
+        console.error('Join failed:', r.status, j);
+        alert('Error joining: ' + (j.error || 'unknown'));
+      }
+    } catch (err) {
+      console.error('joinContest err', err);
+      alert('Network error while joining contest.');
+    }
   }
+
+  // Init
+  await loadMatches();
+
 })();
-
-
-// ---------------------------
-// Load contests for a match
-// ---------------------------
-async function loadContests(matchId) {
-  const box = document.getElementById("contestList");
-
-  try {
-    const r = await fetch(`/api/matches/${matchId}/contests`);
-    const contests = await r.json();
-
-    if (!contests.length) {
-      box.innerHTML = "<div class='muted'>No contests for this match.</div>";
-      return;
-    }
-
-    box.innerHTML = contests.map(c => `
-      <div class="match-row">
-        <strong>${c.title}</strong><br>
-        <span class="muted small">${c.entryFee} entry • Max ${c.maxEntries || '-'} entries</span><br>
-        <button class="btn-primary" style="margin-top:6px;" onclick="joinContest('${c._id}', '${c.matchId}')">
-          Join
-        </button>
-      </div>
-    `).join("");
-
-  } catch (err) {
-    console.error(err);
-    box.innerHTML = "Failed to load contests.";
-  }
-}
-
-
-// ---------------------------
-// Join Contest
-// ---------------------------
-async function joinContest(contestId, matchId) {
-  const token = localStorage.getItem("token");
-
-  if (!token) {
-    alert("Please login before joining a contest.");
-    return;
-  }
-
-  // First check if user has a team for this match
-  const hasTeam = await checkIfUserHasTeam(matchId);
-
-  if (!hasTeam) {
-    if (confirm("You must create a team to join this contest. Create now?")) {
-      window.location.href = "/create-team.html";
-    }
-    return;
-  }
-
-  const viewerName = prompt("Enter your display name:");
-
-  if (!viewerName || viewerName.trim() === "") {
-    alert("Display name is required.");
-    return;
-  }
-
-  // Create entry
-  const payload = {
-    viewerName,
-    players: [],      // server ignores players for contest join
-    captain: null
-  };
-
-  const r = await fetch(`/api/contests/${contestId}/join`, {
-    method: "POST",
-    headers: { "Content-Type":"application/json" },
-    body: JSON.stringify(payload)
-  });
-
-  const j = await r.json();
-
-  if (j.ok) {
-    alert("Joined contest successfully!");
-    return;
-  } else {
-    alert("Error: " + (j.error || "unknown"));
-  }
-}
-
-
-// ---------------------------
-// Check if the user has a team
-// ---------------------------
-async function checkIfUserHasTeam(matchId) {
-  const r = await fetch(`/api/matches/${matchId}/teams`);
-  try {
-    const teams = await r.json();
-
-    const token = localStorage.getItem("token");
-    if (!token) return false;
-
-    const me = await fetch("/api/me", { headers:{ Authorization:"Bearer " + token }});
-    const user = await me.json();
-
-    const myName = user?.user?.displayName;
-    if (!myName) return false;
-
-    return teams.some(t => t.viewerName === myName);
-
-  } catch {
-    return false;
-  }
-}
 </script>
 
 </body>

@@ -1,261 +1,189 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Admin • Roster Generator</title>
-  <link rel="stylesheet" href="/css/style.css" />
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Admin • Roster Generator</title>
+
+<link rel="stylesheet" href="/css/style.css" />
+<style>
+  .card { padding:16px; margin-bottom:16px; }
+  .player-box { padding:8px; border:1px solid #333; border-radius:6px; }
+</style>
 </head>
 
 <body>
+<div class="app">
+  <main class="main">
 
-<!-- global layout -->
-<script src="/js/layout.js"></script>
+    <h2>Admin • Roster Generator</h2>
+    <p class="muted">Upload, preview & push player rosters for matches.</p>
 
-<main class="main">
-  <h2>Admin • Roster Generator</h2>
-  <p class="muted">Upload, edit, preview & push player rosters for matches.</p>
+    <!-- IMPORT CSV -->
+    <section class="card">
+      <h3>Import CSV</h3>
+      <input type="file" id="csvFile" accept=".csv,.xlsx" />
+      <button id="loadCsvBtn" class="btn-primary" style="margin-top:8px;">Load CSV</button>
 
-  <!-- ADMIN GUARD -->
-  <script>
-    (async function(){
-      const token = sessionStorage.getItem("adminToken") || localStorage.getItem("adminToken");
-      if (token === "Ok12345") return;
-      const jwt = localStorage.getItem("token");
-      if (!jwt) { window.location="/dashboard.html"; return; }
+      <p class="muted small">CSV Format: <strong>playerName, role, realTeam, credits, status</strong></p>
+      <div id="csvStatus" class="muted small"></div>
+    </section>
 
-      try {
-        const r = await fetch("/api/me", { headers:{ Authorization:"Bearer "+jwt }});
-        const j = await r.json();
-        if (!(j.ok && j.user && j.user.role === "admin")) {
-          window.location="/dashboard.html"; 
-        } else {
-          sessionStorage.setItem("adminToken","Ok12345");
-        }
-      } catch {
-        window.location="/dashboard.html";
-      }
-    })();
-  </script>
+    <!-- Roster Preview -->
+    <section class="card">
+      <h3>Roster Preview</h3>
+      <div id="rosterList" class="muted">No players loaded.</div>
+    </section>
 
-  <!-- CSV UPLOAD -->
-  <section class="card">
-    <h3>Import CSV</h3>
-    <input type="file" id="csvInput" accept=".csv" class="input">
-    <button class="btn-primary" style="margin-top:10px;" onclick="loadCSV()">Load CSV</button>
-    <div class="muted small" style="margin-top:8px;">
-      CSV Format: <strong>playerName, role, realTeam, credits, status</strong>
-    </div>
-  </section>
+    <!-- PUSH TO MATCH -->
+    <section class="card">
+      <h3>Push Roster to Match</h3>
 
-  <!-- JSON IMPORT -->
-  <section class="card">
-    <h3>Import JSON</h3>
-    <textarea id="jsonInput" class="input" rows="6" placeholder='[ { "playerName":"Rohit Sharma","role":"BAT","credits":9 } ]'></textarea>
-    <button class="btn-ghost" style="margin-top:10px;" onclick="loadJSON()">Load JSON</button>
-  </section>
+      <label>Admin Token</label>
+      <input id="adminToken" placeholder="Admin token" value="Ok12345" />
 
-  <!-- CURRENT ROSTER EDITOR -->
-  <section class="card">
-    <h3>Roster Editor</h3>
-    <div id="editor" class="muted">No players loaded yet.</div>
+      <br><br>
 
-    <button class="btn-ghost" style="margin-top:10px;" onclick="addPlayer()">+ Add Player</button>
-  </section>
+      <label>Select Match</label>
+      <select id="matchSelect"></select>
 
-  <!-- PUSH TO MATCH -->
-  <section class="card">
-    <h3>Push Roster to Match</h3>
+      <br><br>
 
-    <label>Select Match</label>
-    <select id="matchSelect" class="input"></select>
+      <button id="pushRosterBtn" class="btn-primary">Push Roster</button>
+      <div id="pushStatus" class="muted small"></div>
+    </section>
 
-    <button class="btn-primary" style="margin-top:14px;" onclick="pushRoster()">Push Roster</button>
-    <button class="btn-ghost" style="margin-top:10px;" onclick="pullRoster()">Pull From Match</button>
-
-    <div id="pushResult" class="muted" style="margin-top:10px;"></div>
-  </section>
-
-</main>
-
+  </main>
+</div>
 
 <script>
-const ADMIN_TOKEN = "Ok12345";
-let roster = [];
-
-// Load matches into selector
-(async function loadMatches(){
-  const r = await fetch("/api/matches");
-  const m = await r.json();
-  const sel = document.getElementById("matchSelect");
-
-  if (!m.length) {
-    sel.innerHTML = "<option>No matches found</option>";
-    return;
-  }
-
-  sel.innerHTML = m.map(x=>`<option value="${x._id}">${x.name}</option>`).join("");
-})();
-
-
-// --- CSV IMPORT ---
-function loadCSV() {
-  const file = document.getElementById("csvInput").files[0];
-  if (!file) return alert("Select a CSV file!");
-
-  const reader = new FileReader();
-  reader.onload = function(evt) {
-    const text = evt.target.result;
-    roster = parseCSV(text);
-    renderEditor();
-  };
-  reader.readAsText(file);
-}
-
-function parseCSV(text) {
-  const lines = text.trim().split(/\r?\n/);
-  const header = lines[0].split(",").map(h=>h.trim().toLowerCase());
-  const rows = lines.slice(1);
-
-  const out = [];
-
-  rows.forEach(line => {
-    const cols = line.split(",").map(x=>x.trim());
-    const obj = {};
-    header.forEach((h,i)=> obj[h] = cols[i]);
-
-    if (!obj.playername) return;
-    out.push({
-      playerName: obj.playername,
-      role: (obj.role || "BAT").toUpperCase(),
-      realTeam: obj.realteam || "",
-      credits: Number(obj.credits || 8),
-      status: obj.status || "active"
-    });
-  });
-
-  return out;
-}
-
-
-// --- JSON IMPORT ---
-function loadJSON() {
-  let raw = document.getElementById("jsonInput").value.trim();
-  if (!raw) return alert("Paste JSON first!");
-
+// -------------------------------
+// Load matches into dropdown
+// -------------------------------
+async function loadMatches() {
   try {
-    roster = JSON.parse(raw);
-    renderEditor();
-  } catch {
-    alert("Invalid JSON");
+    const r = await fetch("/api/matches");
+    const matches = await r.json();
+
+    const sel = document.getElementById("matchSelect");
+    sel.innerHTML = matches.map(m => 
+      `<option value="${m._id}">${m.name}</option>`
+    ).join("");
+  } catch (e) {
+    console.error("Failed loading matches:", e);
   }
 }
+loadMatches();
 
+// -------------------------------
+// CSV PARSER (Safe)
+// -------------------------------
+function parseCSV(text) {
+  text = text.replace(/^\uFEFF/, "").replace(/\r\n/g, "\n").trim();
+  if (!text) return { header: [], rows: [] };
 
-// --- EDITOR RENDER ---
-function renderEditor() {
-  const box = document.getElementById("editor");
+  const lines = text.split("\n");
+  const header = lines[0].split(",").map(h => h.trim().toLowerCase());
+  const rows = lines.slice(1).map(line =>
+    line.split(",").map(x => x.trim())
+  );
+  return { header, rows };
+}
 
-  if (!roster.length) {
+// -------------------------------
+// MAP CSV → Player object
+// -------------------------------
+function normalizePlayer(row, header) {
+  const obj = {};
+  header.forEach((h, i) => obj[h] = row[i] || "");
+
+  return {
+    playerId: obj.playerid || "",
+    playerName: obj.playername || obj.player_name || "",
+    role: (obj.role || "BAT").toUpperCase(),
+    realTeam: obj.realteam || "",
+    credits: Number(obj.credits || 0),
+    status: obj.status || "active"
+  };
+}
+
+// -------------------------------
+// Load CSV + Create Preview
+// -------------------------------
+let rosterPlayers = [];
+
+document.getElementById("loadCsvBtn").onclick = async function () {
+  const file = document.getElementById("csvFile").files[0];
+  if (!file) return alert("Select a CSV file first");
+
+  document.getElementById("csvStatus").innerText = "Reading file...";
+
+  const text = await file.text();
+  const parsed = parseCSV(text);
+
+  rosterPlayers = parsed.rows
+    .map(row => normalizePlayer(row, parsed.header))
+    .filter(p => p.playerName);
+
+  renderRosterPreview();
+  document.getElementById("csvStatus").innerText =
+    `Loaded ${rosterPlayers.length} players`;
+};
+
+// -------------------------------
+// Render Roster Preview
+// -------------------------------
+function renderRosterPreview() {
+  const box = document.getElementById("rosterList");
+  if (!rosterPlayers.length) {
     box.innerHTML = "<div class='muted'>No players loaded.</div>";
     return;
   }
 
-  box.innerHTML = roster.map((p,i)=>`
-    <div class="match-row" style="flex-wrap:wrap;">
-      <div style="flex:1 1 200px;">
+  box.innerHTML = rosterPlayers
+    .map(
+      p => `
+      <div class="player-box">
         <strong>${p.playerName}</strong><br>
-        <span class="muted small">${p.role} • ${p.credits}cr</span>
-      </div>
-
-      <div style="flex:1 1 120px;">
-        <label>Role</label>
-        <select class="input small" onchange="updateRole(${i}, this.value)">
-          ${["BAT","BWL","ALL","WK"].map(r=>`
-            <option ${p.role===r?'selected':''}>${r}</option>
-          `).join("")}
-        </select>
-      </div>
-
-      <div style="flex:1 1 120px;">
-        <label>Credits</label>
-        <input class="input small" value="${p.credits}" onchange="updateCredits(${i}, this.value)">
-      </div>
-
-      <div style="flex:1 1 120px;">
-        <label>Status</label>
-        <select class="input small" onchange="updateStatus(${i}, this.value)">
-          <option ${p.status==="active"?'selected':''}>active</option>
-          <option ${p.status==="injured"?'selected':''}>injured</option>
-          <option ${p.status==="bench"?'selected':''}>bench</option>
-        </select>
-      </div>
-
-      <button class="btn-danger small" onclick="removePlayer(${i})">Remove</button>
-    </div>
-  `).join("");
+        <span class="muted small">${p.role} • ${p.realTeam} • ${p.credits} credits</span>
+      </div>`
+    )
+    .join("");
 }
 
-function updateRole(i, val){ roster[i].role = val; }
-function updateCredits(i, val){ roster[i].credits = Number(val); }
-function updateStatus(i, val){ roster[i].status = val; }
-function removePlayer(i){ roster.splice(i,1); renderEditor(); }
+// -------------------------------
+// PUSH ROSTER TO SERVER
+// -------------------------------
+document.getElementById("pushRosterBtn").onclick = async function () {
+  if (!rosterPlayers.length) return alert("No roster loaded");
 
-
-// --- ADD PLAYER ---
-function addPlayer() {
-  roster.push({
-    playerName: "New Player",
-    role: "BAT",
-    realTeam: "",
-    credits: 8,
-    status: "active"
-  });
-  renderEditor();
-}
-
-
-// --- PUSH ROSTER TO MATCH ---
-async function pushRoster() {
   const matchId = document.getElementById("matchSelect").value;
-  if (!matchId) return alert("Select a match first.");
+  const adminToken = document.getElementById("adminToken").value;
 
-  const r = await fetch(`/api/admin/matches/${matchId}/roster`, {
-    method: "POST",
-    headers: {
-      "Content-Type":"application/json",
-      "X-Admin-Token": ADMIN_TOKEN
-    },
-    body: JSON.stringify({ players: roster })
-  });
+  const url = `/api/admin/matches/${matchId}/roster?adminToken=${adminToken}`;
+  const pushStatus = document.getElementById("pushStatus");
 
-  const j = await r.json();
-  const box = document.getElementById("pushResult");
+  pushStatus.innerText = "Pushing roster...";
 
-  if (j.ok) {
-    box.textContent = "Roster pushed successfully!";
-  } else {
-    box.textContent = "Error: " + j.error;
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-admin-token": adminToken },
+      body: JSON.stringify({ players: rosterPlayers })
+    });
+
+    const j = await res.json();
+
+    if (j.ok) {
+      pushStatus.innerText = `Roster pushed successfully ✓`;
+      alert("Roster saved!");
+    } else {
+      pushStatus.innerText = "Error: " + j.error;
+    }
+  } catch (err) {
+    pushStatus.innerText = "Push failed: " + err.message;
   }
-}
-
-
-// --- PULL EXISTING ROSTER ---
-async function pullRoster() {
-  const matchId = document.getElementById("matchSelect").value;
-  if (!matchId) return alert("Select a match.");
-
-  const r = await fetch(`/api/matches/${matchId}/players`);
-  const j = await r.json();
-
-  if (!j.ok) {
-    alert("This match has no roster saved yet.");
-    return;
-  }
-
-  roster = j.players;
-  renderEditor();
-}
+};
 </script>
 
 </body>
