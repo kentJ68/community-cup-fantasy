@@ -1,122 +1,262 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Roster Manager – Admin</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <script src="/socket.io/socket.io.js"></script>
-  <link rel="stylesheet" href="/css/style.css"/>
+  <title>Admin • Roster Generator</title>
+  <link rel="stylesheet" href="/css/style.css" />
 </head>
 
 <body>
-  <div class="wrap">
-    <h1>Roster Manager — Admin</h1>
 
-    <div class="card">
-      <label>Select Match</label>
-      <select id="matchSelect"></select>
-      <input id="adminToken" placeholder="Admin Token (Ok12345)" />
-    </div>
+<!-- global layout -->
+<script src="/js/layout.js"></script>
 
-    <div class="card">
-      <label>Upload CSV Roster</label>
-      <input id="csvInput" type="file" accept=".csv" />
-      <button onclick="uploadCSV()">Upload</button>
-      <div id="csvMsg"></div>
-    </div>
+<main class="main">
+  <h2>Admin • Roster Generator</h2>
+  <p class="muted">Upload, edit, preview & push player rosters for matches.</p>
 
-    <div class="card">
-      <label>Paste JSON Roster</label>
-      <textarea id="jsonInput"></textarea>
-      <button onclick="saveJSON()">Save JSON</button>
-      <button onclick="previewJSON()">Preview</button>
-      <div id="jsonMsg"></div>
-    </div>
+  <!-- ADMIN GUARD -->
+  <script>
+    (async function(){
+      const token = sessionStorage.getItem("adminToken") || localStorage.getItem("adminToken");
+      if (token === "Ok12345") return;
+      const jwt = localStorage.getItem("token");
+      if (!jwt) { window.location="/dashboard.html"; return; }
 
-    <div class="card">
-      <h3>Current Roster</h3>
-      <div id="previewBox">Select a match</div>
+      try {
+        const r = await fetch("/api/me", { headers:{ Authorization:"Bearer "+jwt }});
+        const j = await r.json();
+        if (!(j.ok && j.user && j.user.role === "admin")) {
+          window.location="/dashboard.html"; 
+        } else {
+          sessionStorage.setItem("adminToken","Ok12345");
+        }
+      } catch {
+        window.location="/dashboard.html";
+      }
+    })();
+  </script>
+
+  <!-- CSV UPLOAD -->
+  <section class="card">
+    <h3>Import CSV</h3>
+    <input type="file" id="csvInput" accept=".csv" class="input">
+    <button class="btn-primary" style="margin-top:10px;" onclick="loadCSV()">Load CSV</button>
+    <div class="muted small" style="margin-top:8px;">
+      CSV Format: <strong>playerName, role, realTeam, credits, status</strong>
     </div>
-  </div>
+  </section>
+
+  <!-- JSON IMPORT -->
+  <section class="card">
+    <h3>Import JSON</h3>
+    <textarea id="jsonInput" class="input" rows="6" placeholder='[ { "playerName":"Rohit Sharma","role":"BAT","credits":9 } ]'></textarea>
+    <button class="btn-ghost" style="margin-top:10px;" onclick="loadJSON()">Load JSON</button>
+  </section>
+
+  <!-- CURRENT ROSTER EDITOR -->
+  <section class="card">
+    <h3>Roster Editor</h3>
+    <div id="editor" class="muted">No players loaded yet.</div>
+
+    <button class="btn-ghost" style="margin-top:10px;" onclick="addPlayer()">+ Add Player</button>
+  </section>
+
+  <!-- PUSH TO MATCH -->
+  <section class="card">
+    <h3>Push Roster to Match</h3>
+
+    <label>Select Match</label>
+    <select id="matchSelect" class="input"></select>
+
+    <button class="btn-primary" style="margin-top:14px;" onclick="pushRoster()">Push Roster</button>
+    <button class="btn-ghost" style="margin-top:10px;" onclick="pullRoster()">Pull From Match</button>
+
+    <div id="pushResult" class="muted" style="margin-top:10px;"></div>
+  </section>
+
+</main>
+
 
 <script>
-const el = x => document.getElementById(x);
+const ADMIN_TOKEN = "Ok12345";
+let roster = [];
 
-// load matches
-async function loadMatches() {
+// Load matches into selector
+(async function loadMatches(){
   const r = await fetch("/api/matches");
   const m = await r.json();
-  el("matchSelect").innerHTML = m.map(o => 
-    `<option value="${o._id}">${o.name}</option>`
-  ).join("");
-  if (m[0]) loadPreview(m[0]._id);
+  const sel = document.getElementById("matchSelect");
+
+  if (!m.length) {
+    sel.innerHTML = "<option>No matches found</option>";
+    return;
+  }
+
+  sel.innerHTML = m.map(x=>`<option value="${x._id}">${x.name}</option>`).join("");
+})();
+
+
+// --- CSV IMPORT ---
+function loadCSV() {
+  const file = document.getElementById("csvInput").files[0];
+  if (!file) return alert("Select a CSV file!");
+
+  const reader = new FileReader();
+  reader.onload = function(evt) {
+    const text = evt.target.result;
+    roster = parseCSV(text);
+    renderEditor();
+  };
+  reader.readAsText(file);
 }
 
-// load preview
-async function loadPreview(id) {
-  const r = await fetch(`/api/matches/${id}/players`);
-  if (!r.ok) return el("previewBox").textContent = "No roster";
+function parseCSV(text) {
+  const lines = text.trim().split(/\r?\n/);
+  const header = lines[0].split(",").map(h=>h.trim().toLowerCase());
+  const rows = lines.slice(1);
 
-  const j = await r.json();
-  el("previewBox").innerHTML = j.players.map(
-    p => `<div>${p.playerName} — ${p.role} — ${p.realTeam} (${p.credits})</div>`
-  ).join("") || "No players";
-}
+  const out = [];
 
-// Upload CSV
-async function uploadCSV() {
-  const file = el("csvInput").files[0];
-  const token = el("adminToken").value.trim();
-  if (!token) return alert("Enter admin token");
+  rows.forEach(line => {
+    const cols = line.split(",").map(x=>x.trim());
+    const obj = {};
+    header.forEach((h,i)=> obj[h] = cols[i]);
 
-  const fd = new FormData();
-  fd.append("rosterCsv", file);
-
-  const r = await fetch(`/api/admin/matches/${el('matchSelect').value}/roster-csv`, {
-    method: "POST",
-    headers: { "x-admin-token": token },
-    body: fd
+    if (!obj.playername) return;
+    out.push({
+      playerName: obj.playername,
+      role: (obj.role || "BAT").toUpperCase(),
+      realTeam: obj.realteam || "",
+      credits: Number(obj.credits || 8),
+      status: obj.status || "active"
+    });
   });
 
-  const j = await r.json();
-  el("csvMsg").textContent = j.ok ? `Imported ${j.count}` : "Error: " + j.error;
-  loadPreview(el("matchSelect").value);
+  return out;
 }
 
-// Save JSON roster
-async function saveJSON() {
-  const token = el("adminToken").value.trim();
-  const txt = el("jsonInput").value.trim();
-  if (!token) return alert("Enter admin token");
 
-  let payload;
-  try { payload = JSON.parse(txt); }
-  catch (e) { return alert("Invalid JSON"); }
+// --- JSON IMPORT ---
+function loadJSON() {
+  let raw = document.getElementById("jsonInput").value.trim();
+  if (!raw) return alert("Paste JSON first!");
 
-  const r = await fetch(`/api/admin/matches/${el('matchSelect').value}/roster`, {
-    method: "POST",
-    headers: { "x-admin-token": token, "Content-Type": "application/json" },
-    body: JSON.stringify({ players: payload })
-  });
-
-  const j = await r.json();
-  el("jsonMsg").textContent = j.ok ? "Saved roster" : "Error: " + j.error;
-  loadPreview(el("matchSelect").value);
-}
-
-function previewJSON() {
   try {
-    const arr = JSON.parse(el("jsonInput").value);
-    el("previewBox").innerHTML = arr.map(
-      p => `<div>${p.playerName} — ${p.role}</div>`
-    ).join("");
+    roster = JSON.parse(raw);
+    renderEditor();
   } catch {
-    el("jsonMsg").textContent = "Invalid JSON";
+    alert("Invalid JSON");
   }
 }
 
-el("matchSelect").addEventListener("change", e => loadPreview(e.target.value));
-loadMatches();
+
+// --- EDITOR RENDER ---
+function renderEditor() {
+  const box = document.getElementById("editor");
+
+  if (!roster.length) {
+    box.innerHTML = "<div class='muted'>No players loaded.</div>";
+    return;
+  }
+
+  box.innerHTML = roster.map((p,i)=>`
+    <div class="match-row" style="flex-wrap:wrap;">
+      <div style="flex:1 1 200px;">
+        <strong>${p.playerName}</strong><br>
+        <span class="muted small">${p.role} • ${p.credits}cr</span>
+      </div>
+
+      <div style="flex:1 1 120px;">
+        <label>Role</label>
+        <select class="input small" onchange="updateRole(${i}, this.value)">
+          ${["BAT","BWL","ALL","WK"].map(r=>`
+            <option ${p.role===r?'selected':''}>${r}</option>
+          `).join("")}
+        </select>
+      </div>
+
+      <div style="flex:1 1 120px;">
+        <label>Credits</label>
+        <input class="input small" value="${p.credits}" onchange="updateCredits(${i}, this.value)">
+      </div>
+
+      <div style="flex:1 1 120px;">
+        <label>Status</label>
+        <select class="input small" onchange="updateStatus(${i}, this.value)">
+          <option ${p.status==="active"?'selected':''}>active</option>
+          <option ${p.status==="injured"?'selected':''}>injured</option>
+          <option ${p.status==="bench"?'selected':''}>bench</option>
+        </select>
+      </div>
+
+      <button class="btn-danger small" onclick="removePlayer(${i})">Remove</button>
+    </div>
+  `).join("");
+}
+
+function updateRole(i, val){ roster[i].role = val; }
+function updateCredits(i, val){ roster[i].credits = Number(val); }
+function updateStatus(i, val){ roster[i].status = val; }
+function removePlayer(i){ roster.splice(i,1); renderEditor(); }
+
+
+// --- ADD PLAYER ---
+function addPlayer() {
+  roster.push({
+    playerName: "New Player",
+    role: "BAT",
+    realTeam: "",
+    credits: 8,
+    status: "active"
+  });
+  renderEditor();
+}
+
+
+// --- PUSH ROSTER TO MATCH ---
+async function pushRoster() {
+  const matchId = document.getElementById("matchSelect").value;
+  if (!matchId) return alert("Select a match first.");
+
+  const r = await fetch(`/api/admin/matches/${matchId}/roster`, {
+    method: "POST",
+    headers: {
+      "Content-Type":"application/json",
+      "X-Admin-Token": ADMIN_TOKEN
+    },
+    body: JSON.stringify({ players: roster })
+  });
+
+  const j = await r.json();
+  const box = document.getElementById("pushResult");
+
+  if (j.ok) {
+    box.textContent = "Roster pushed successfully!";
+  } else {
+    box.textContent = "Error: " + j.error;
+  }
+}
+
+
+// --- PULL EXISTING ROSTER ---
+async function pullRoster() {
+  const matchId = document.getElementById("matchSelect").value;
+  if (!matchId) return alert("Select a match.");
+
+  const r = await fetch(`/api/matches/${matchId}/players`);
+  const j = await r.json();
+
+  if (!j.ok) {
+    alert("This match has no roster saved yet.");
+    return;
+  }
+
+  roster = j.players;
+  renderEditor();
+}
 </script>
+
 </body>
 </html>

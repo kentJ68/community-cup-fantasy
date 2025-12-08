@@ -1,91 +1,160 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Admin — Roster</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Rosters • Beowulf Fantasy</title>
   <link rel="stylesheet" href="/css/style.css" />
 </head>
 <body>
-  <div class="container">
-    <header><h1>Admin — Roster</h1><a href="/admin/matches.html">Back</a></header>
 
-    <main>
-      <section class="card">
-        <label>Select Match</label>
-        <select id="matchSelect"></select>
-        <input id="adminToken" placeholder="Admin token (required)" />
-      </section>
+<!-- App container required by layout.js to inject sidebar/topbar -->
+<div class="app">
+  <script src="/js/layout.js"></script>
 
-      <section class="card">
-        <label>Upload CSV (playerName,role,realTeam,credits)</label>
-        <input type="file" id="csvFile" accept=".csv" />
-        <button id="uploadBtn">Upload CSV</button>
-        <div id="uploadMsg"></div>
-      </section>
+  <main class="main">
+    <h2>Rosters</h2>
+    <p class="muted">Browse match rosters and player info. Use the search to filter players by name, role, or team.</p>
 
-      <section class="card">
-        <h3>Roster Preview</h3>
-        <div id="preview">No match selected</div>
-      </section>
-    </main>
-  </div>
+    <section class="card">
+      <label for="matchSelect">Select Match</label>
+      <select id="matchSelect" class="input"></select>
+    </section>
+
+    <section class="card">
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+        <input id="searchBox" class="input" placeholder="Search players by name / role / team" style="flex:1;">
+        <select id="roleFilter" class="input" style="width:160px;">
+          <option value="">All Roles</option>
+          <option value="BAT">BAT</option>
+          <option value="BWL">BWL</option>
+          <option value="ALL">ALL</option>
+          <option value="WK">WK</option>
+        </select>
+        <button class="btn-ghost" id="downloadCsv">Download CSV</button>
+      </div>
+
+      <div id="playersList" style="margin-top:14px;" class="muted">Select a match to load roster.</div>
+    </section>
+
+  </main>
+</div>
 
 <script>
-const el = id => document.getElementById(id);
+/* Helpers */
+function initialsImage(short, color) {
+  const bg = (color || '#332222').replace('#','');
+  return `https://dummyimage.com/120x120/${bg}/ffffff&text=${encodeURIComponent(short)}`;
+}
 
-// Load matches
+/* Load matches */
 async function loadMatches() {
-  const r = await fetch('/api/matches');
-  const m = await r.json();
-  el('matchSelect').innerHTML = m.map(x =>
-    `<option value="${x._id}">${x.name}</option>`
-  ).join('');
+  try {
+    const r = await fetch('/api/matches');
+    const matches = await r.json();
 
-  if (m[0]) loadPreview(m[0]._id);
+    const sel = document.getElementById('matchSelect');
+    if (!Array.isArray(matches) || matches.length === 0) {
+      sel.innerHTML = '<option>No matches</option>';
+      return;
+    }
+
+    sel.innerHTML = matches.map(m => `<option value="${m._id}">${m.name}</option>`).join('');
+    sel.addEventListener('change', () => loadRosterForMatch(sel.value));
+    // load first
+    loadRosterForMatch(matches[0]._id);
+  } catch (err) {
+    document.getElementById('playersList').innerHTML = '<div class="muted">Failed to load matches</div>';
+    console.error(err);
+  }
 }
 
-// Preview roster
-async function loadPreview(matchId) {
-  const r = await fetch(`/api/matches/${matchId}/players`);
-  const j = await r.json();
-  const arr = j.players || [];
-  el('preview').innerHTML =
-    arr.length === 0
-      ? '<div>No players</div>'
-      : arr.map(p =>
-          `<div>${p.playerName} — ${p.role} — ${p.realTeam} (${p.credits})</div>`
-        ).join('');
+/* Load roster for selected match */
+let currentPlayers = [];
+async function loadRosterForMatch(matchId) {
+  const box = document.getElementById('playersList');
+  box.innerHTML = '<div class="muted">Loading roster…</div>';
+  try {
+    const r = await fetch(`/api/matches/${matchId}/players`);
+    const j = await r.json();
+    if (!j.ok) {
+      box.innerHTML = '<div class="muted">No roster available for this match.</div>';
+      currentPlayers = [];
+      return;
+    }
+    currentPlayers = j.players || [];
+    renderPlayers();
+  } catch (err) {
+    box.innerHTML = '<div class="muted">Failed to load roster</div>';
+    console.error(err);
+  }
 }
 
-// Upload CSV
-el('uploadBtn').addEventListener('click', async () => {
-  const file = el('csvFile').files[0];
-  if (!file) return alert("Choose a CSV file.");
+/* Render players with search + role filter */
+function renderPlayers() {
+  const q = (document.getElementById('searchBox').value || '').toLowerCase().trim();
+  const role = document.getElementById('roleFilter').value;
+  const box = document.getElementById('playersList');
 
-  const token = el('adminToken').value.trim();
-  if (!token) return alert("Enter admin token.");
-
-  const fd = new FormData();
-  fd.append("rosterCsv", file);
-
-  const r = await fetch(`/api/admin/matches/${el('matchSelect').value}/roster-csv`, {
-    method: "POST",
-    headers: { "x-admin-token": token },
-    body: fd
+  const filtered = currentPlayers.filter(p => {
+    if (role && (p.role || '').toUpperCase() !== role) return false;
+    if (!q) return true;
+    const s = `${p.playerName} ${p.role} ${p.realTeam || ''}`.toLowerCase();
+    return s.includes(q);
   });
 
-  const j = await r.json();
-  if (j.ok) {
-    el('uploadMsg').textContent = `Imported ${j.count} players`;
-    loadPreview(el('matchSelect').value);
-  } else {
-    el('uploadMsg').textContent = "Error: " + j.error;
+  if (!filtered.length) {
+    box.innerHTML = '<div class="muted">No players match your search.</div>';
+    return;
   }
-});
 
-el('matchSelect').addEventListener('change', e => loadPreview(e.target.value));
+  box.innerHTML = filtered.map(p => `
+    <div class="player-row">
+      <div style="display:flex;align-items:center;gap:12px;flex:1;">
+        <img class="team-logo" src="${p.logo || initialsImage((p.playerName||'').split(' ').slice(0,2).map(x=>x[0]).join(''), '#3b1b1b')}"
+             onerror="this.src='${initialsImage((p.playerName||'').slice(0,2), '#3b1b1b')}'" />
+        <div>
+          <div class="player-name">${p.playerName}</div>
+          <div class="muted small">${p.realTeam || ''}</div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:14px;align-items:center;">
+        <div class="player-role">${p.role || '-'}</div>
+        <div class="player-credits">${p.credits != null ? p.credits : '-'}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+/* Download CSV of current roster */
+function downloadCsv() {
+  if (!currentPlayers.length) return alert('No roster loaded');
+  const rows = [
+    ['playerName','role','realTeam','credits','status'].join(',')
+  ];
+  currentPlayers.forEach(p => {
+    rows.push([p.playerName||'', p.role||'', p.realTeam||'', p.credits||'', p.status||''].map(v => `"${(v+'').replace(/"/g,'""')}"`).join(','));
+  });
+  const csv = rows.join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `roster-${document.getElementById('matchSelect').value || 'match'}.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
+
+/* Event listeners */
+document.getElementById && (() => {
+  document.getElementById('searchBox').addEventListener('input', renderPlayers);
+  document.getElementById('roleFilter').addEventListener('change', renderPlayers);
+  document.getElementById('downloadCsv').addEventListener('click', downloadCsv);
+})();
+
 loadMatches();
 </script>
+
 </body>
 </html>

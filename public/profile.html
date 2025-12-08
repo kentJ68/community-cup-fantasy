@@ -1,90 +1,262 @@
 <!doctype html>
-<html>
+<html lang="en">
+
 <head>
-  <meta charset="utf-8"/>
-  <title>Profile — Community Cup</title>
+  <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Your Profile • Beowulf Fantasy</title>
+
+  <link rel="stylesheet" href="/css/style.css" />
+
   <style>
-    body{font-family:system-ui,Arial;background:#071021;color:#e6f1f7;padding:18px}
-    .card{background:#041225;padding:12px;border-radius:10px;max-width:800px;margin:0 auto}
-    label{display:block;margin-top:10px}
-    input{width:100%;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.03)}
-    button{padding:8px 10px;border-radius:8px;border:0;background:#ffd166;color:#081018;font-weight:700;cursor:pointer;margin-top:10px}
-    img.avatar{height:96px;border-radius:12px;object-fit:cover}
-    .small{color:#9fb0c0}
+    .profile-card {
+      max-width: 640px;
+      margin: 0 auto;
+    }
+
+    .avatar-box {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    .avatar-pic {
+      width: 110px;
+      height: 110px;
+      border-radius: 50%;
+      object-fit: cover;
+      box-shadow: 0 0 12px rgba(0,0,0,0.5);
+    }
+
+    .avatar-upload {
+      margin-top: 10px;
+      text-align: center;
+    }
+
+    .input {
+      width: 100%;
+      margin-top: 10px;
+      padding: 12px;
+      background: #0b141f;
+      border: 1px solid #1e2f45;
+      border-radius: 10px;
+      color: #e2ecf5;
+      font-size: 15px;
+    }
+
+    .btn-primary {
+      width: 100%;
+      margin-top: 16px;
+    }
+
+    .badge-tag {
+      background: #1a2433;
+      border: 1px solid #2f4157;
+      padding: 4px 10px;
+      border-radius: 8px;
+      margin-right: 6px;
+      display: inline-block;
+      font-size: 12px;
+      color: #a8c4e0;
+    }
   </style>
 </head>
+
 <body>
-  <div class="card">
-    <h2>Your Profile</h2>
-    <div id="profileArea">Loading...</div>
 
-    <form id="profileForm" style="margin-top:12px">
-      <label>Display name</label>
-      <input id="displayName" />
-      <label>Twitch URL</label>
-      <input id="twitchUrl" placeholder="https://www.twitch.tv/username" />
-      <label>YouTube URL</label>
-      <input id="youtubeUrl" placeholder="https://www.youtube.com/channel/..." />
-      <label>Upload avatar (png/jpg)</label>
-      <input id="avatarFile" type="file" accept="image/*" />
-      <button id="saveProfileBtn" type="button">Save Profile</button>
-      <div id="profileMsg" class="small"></div>
-    </form>
+<!-- Apply topbar + sidebar -->
+<script src="/js/layout.js"></script>
 
-    <div style="margin-top:12px">
-      <button id="logoutBtn">Sign out</button>
+<main class="main">
+
+  <h2>Your Profile</h2>
+  <p class="muted">Update your info, avatar, and track season progress.</p>
+
+  <section class="card profile-card">
+
+    <!-- AVATAR -->
+    <div class="avatar-box">
+      <img id="avatarImg" class="avatar-pic" src="/assets/default-avatar.png" alt="">
+      <div class="avatar-upload">
+        <input id="avatarFile" type="file" accept="image/*" style="margin-top:10px;">
+        <button class="btn-ghost small" onclick="uploadAvatar()">Upload Avatar</button>
+      </div>
     </div>
-  </div>
+
+    <!-- DISPLAY NAME -->
+    <label>Display Name</label>
+    <input id="displayName" class="input" placeholder="Your name">
+
+    <!-- EMAIL INFO -->
+    <label style="margin-top:14px;">Email (read-only)</label>
+    <input id="emailBox" class="input" disabled>
+
+    <!-- FLAGS -->
+    <div id="authFlags" style="margin-top:12px;"></div>
+
+    <!-- SAVE BUTTON -->
+    <button class="btn-primary" onclick="saveProfile()">Save Profile</button>
+
+  </section>
+
+  <!-- SEASON STATS -->
+  <section class="card profile-card" style="margin-top:20px;">
+    <h3>Your Season Progress</h3>
+    <div id="seasonInfo" class="muted">Loading…</div>
+  </section>
+
+</main>
+
 
 <script>
-  const token = localStorage.getItem('token');
-  if (!token) document.getElementById('profileArea').innerHTML = `Not signed in — <a href="/login.html">Login</a>`;
-  else loadProfile();
+let USER = null;
 
-  async function loadProfile() {
-    try {
-      const res = await fetch('/api/me', { headers: { 'Authorization': 'Bearer ' + token }});
-      const d = await res.json();
-      if (!res.ok) { document.getElementById('profileArea').textContent = d.error || 'Failed'; return; }
-      const u = d.user;
-      document.getElementById('profileArea').innerHTML = `
-        <div style="display:flex;gap:12px;align-items:center">
-          <img src="${u.avatarUrl || '/assets/logo.png'}" class="avatar" />
-          <div>
-            <div style="font-size:1.1rem">${u.displayName || u.email}</div>
-            <div class="small">Credits: <strong>${u.credits}</strong></div>
-          </div>
-        </div>
-      `;
-      document.getElementById('displayName').value = u.displayName || '';
-      document.getElementById('twitchUrl').value = u.twitchUrl || '';
-      document.getElementById('youtubeUrl').value = u.youtubeUrl || '';
-    } catch (e) { console.error(e); document.getElementById('profileArea').textContent = 'Error'; }
+// -----------------------------
+// Load current profile
+// -----------------------------
+async function loadProfile() {
+  const token = localStorage.getItem("token");
+  if (!token) {
+    window.location = "/login.html";
+    return;
   }
 
-  document.getElementById('saveProfileBtn').addEventListener('click', async () => {
-    const msg = document.getElementById('profileMsg'); msg.textContent = '';
-    const displayName = document.getElementById('displayName').value.trim();
-    const twitchUrl = document.getElementById('twitchUrl').value.trim();
-    const youtubeUrl = document.getElementById('youtubeUrl').value.trim();
-    try {
-      const res = await fetch('/api/me', { method:'PUT', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+token }, body: JSON.stringify({ displayName, twitchUrl, youtubeUrl })});
-      const d = await res.json();
-      if (!res.ok) { msg.textContent = d.error || 'Failed'; return; }
-      const file = document.getElementById('avatarFile').files[0];
-      if (file) {
-        const form = new FormData(); form.append('avatar', file);
-        const r2 = await fetch('/api/me/avatar', { method:'POST', headers:{ 'Authorization':'Bearer '+token }, body: form });
-        const j2 = await r2.json();
-        if (!r2.ok) { msg.textContent = j2.error || 'Avatar upload failed'; return; }
-      }
-      msg.textContent = 'Profile saved';
-      loadProfile();
-    } catch (e) { console.error(e); msg.textContent = 'Network error'; }
+  const r = await fetch("/api/me", {
+    headers: { Authorization: "Bearer " + token }
   });
 
-  document.getElementById('logoutBtn').addEventListener('click', ()=>{ localStorage.removeItem('token'); window.location = '/'; });
+  const j = await r.json();
+
+  if (!j.ok) {
+    window.location = "/login.html";
+    return;
+  }
+
+  USER = j.user;
+
+  // Fill form
+  document.getElementById("displayName").value = USER.displayName || "";
+  document.getElementById("emailBox").value = USER.email || "Google-linked";
+
+  if (USER.avatarUrl) {
+    document.getElementById("avatarImg").src = USER.avatarUrl;
+  }
+
+  // Auth flags
+  const flags = [];
+  if (USER.googleId) flags.push(`<span class="badge-tag">Google Linked</span>`);
+  if (USER.role === "admin") flags.push(`<span class="badge-tag">Admin</span>`);
+  document.getElementById("authFlags").innerHTML = flags.join("");
+
+  loadSeasonProgress();
+}
+
+loadProfile();
+
+
+// -----------------------------
+// Upload Avatar
+// -----------------------------
+async function uploadAvatar() {
+  const f = document.getElementById("avatarFile").files[0];
+  if (!f) return alert("Select an image first!");
+
+  const form = new FormData();
+  form.append("avatar", f);
+
+  const token = localStorage.getItem("token");
+
+  const r = await fetch("/api/me/avatar", {
+    method: "POST",
+    headers: { Authorization: "Bearer " + token },
+    body: form
+  });
+
+  const j = await r.json();
+
+  if (!j.ok) return alert("Upload failed");
+
+  document.getElementById("avatarImg").src = j.avatarUrl;
+  alert("Avatar updated!");
+}
+
+
+// -----------------------------
+// Save Profile (Display Name)
+// -----------------------------
+async function saveProfile() {
+  const newName = document.getElementById("displayName").value.trim();
+  if (!newName) return alert("Name cannot be empty");
+
+  const token = localStorage.getItem("token");
+
+  const r = await fetch("/api/me", {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: "Bearer " + token
+    },
+    body: JSON.stringify({ displayName: newName })
+  });
+
+  const j = await r.json();
+
+  if (!j.ok) {
+    alert("Save failed");
+  } else {
+    alert("Profile updated!");
+  }
+}
+
+
+// -----------------------------
+// Season Progress
+// -----------------------------
+async function loadSeasonProgress() {
+  const box = document.getElementById("seasonInfo");
+  const token = localStorage.getItem("token");
+  if (!token) {
+    box.innerHTML = "Login required.";
+    return;
+  }
+
+  // get displayName
+  const name = USER.displayName;
+
+  try {
+    const r = await fetch("/api/season/leaderboard");
+    const j = await r.json();
+
+    if (!j.ok || !j.leaderboard.length) {
+      box.innerHTML = "<div class='muted'>Season not started yet.</div>";
+      return;
+    }
+
+    const rank = j.leaderboard.findIndex(x => x.viewerName === name);
+
+    if (rank === -1) {
+      box.innerHTML = `
+        <div class="muted">You haven't participated yet.</div>
+      `;
+      return;
+    }
+
+    const total = j.leaderboard[rank].total;
+
+    box.innerHTML = `
+      <div style="margin-bottom:10px;">
+        <strong>Rank:</strong> #${rank + 1}
+      </div>
+      <div style="margin-bottom:10px;">
+        <strong>Total Points:</strong> ${total}
+      </div>
+    `;
+
+  } catch (e) {
+    box.innerHTML = "Failed to load season stats.";
+  }
+}
+
 </script>
+
 </body>
 </html>

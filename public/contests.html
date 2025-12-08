@@ -1,232 +1,174 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <title>Contests — Community Cup</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <link rel="stylesheet" href="/css/style.css" />
-  <style>
-    /* small helper styles if your main CSS doesn't cover these */
-    .muted { color: #777; padding: 12px 0; }
-    .contest-card { border:1px solid #e0e0e0; padding:10px; margin-bottom:8px; border-radius:6px; display:flex; align-items:center; justify-content:space-between; gap:12px; }
-    .contest-info {flex:1}
-    .controls button { margin-left:6px; }
-    .top-actions { display:flex; gap:8px; align-items:center; }
-    .error { color: #b00020; }
-    .small { font-size:0.9rem; color:#555; }
-  </style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Contests • Beowulf Fantasy League</title>
+  <link rel="stylesheet" href="/css/style.css">
 </head>
+
 <body>
-  <div class="container">
-    <header>
-      <h1>Contests</h1>
-      <nav class="top-actions">
-        <a href="/">Home</a>
-        <!-- If you want an "admin token" to be used for delete actions, set it below -->
-        <span class="small">Admin token: <code id="adminTokenDisplay">not set</code></span>
-      </nav>
-    </header>
 
-    <main>
-      <section class="card">
-        <label for="matchSelect">Match</label>
-        <select id="matchSelect" aria-label="Select match"></select>
-        <div class="small" id="matchHelper"></div>
-      </section>
+<!-- Global Layout System -->
+<script src="/js/layout.js"></script>
 
-      <section class="card">
-        <h3>Available Contests</h3>
-        <div id="contests">Choose a match</div>
-      </section>
-    </main>
-  </div>
+<main class="main">
+
+  <h2>Contests</h2>
+  <p class="muted">Join a contest and compete with other players in the selected match.</p>
+
+  <!-- SELECT MATCH -->
+  <section class="card">
+    <label>Select Match</label>
+    <select id="matchSelect" class="input"></select>
+  </section>
+
+  <!-- CONTEST LIST -->
+  <section class="card">
+    <h3>Available Contests</h3>
+    <div id="contestList" class="muted">Choose a match</div>
+  </section>
+
+</main>
+
 
 <script>
-/*
-  Updated contests page
-  - Corrects previous bugs (_1d typo, duplicate fetch)
-  - Handles loading/error states
-  - Provides Join, Delete Contest (admin), Delete Match (admin)
-  - Optional ADMIN_TOKEN variable below (if your backend requires one)
-*/
+// ---------------------------
+// Load all matches
+// ---------------------------
+(async function loadMatches() {
+  try {
+    const r = await fetch('/api/matches');
+    const matches = await r.json();
 
-(() => {
-  const el = id => document.getElementById(id);
-
-  // If your backend requires an admin token for delete routes, set it here:
-  // Example: const ADMIN_TOKEN = 'supersecret';
-  // If you don't need it, leave null or empty.
-  const ADMIN_TOKEN = ''; // <-- set if needed
-  if (ADMIN_TOKEN) el('adminTokenDisplay').innerText = '[hidden]';
-  else el('adminTokenDisplay').innerText = 'not set';
-
-  const apiBase = ''; // keep blank for same-origin (http://localhost:4000). Change to full URL if needed.
-
-  function makeHeaders(isJson = true, includeAdmin = false) {
-    const headers = {};
-    if (isJson) headers['Content-Type'] = 'application/json';
-    if (includeAdmin && ADMIN_TOKEN) headers['X-Admin-Token'] = ADMIN_TOKEN;
-    return headers;
-  }
-
-  async function fetchJson(url, opts = {}) {
-    try {
-      const res = await fetch(apiBase + url, opts);
-      const txt = await res.text();
-      // try parse JSON, fallback to text
-      let data;
-      try { data = txt ? JSON.parse(txt) : null; } catch(e) { data = txt; }
-      if (!res.ok) {
-        // if backend returns { error } or similar, bubble message
-        const errMsg = (data && data.error) ? data.error : (typeof data === 'string' ? data : res.statusText);
-        throw new Error(errMsg || 'Request failed');
-      }
-      return data;
-    } catch (err) {
-      throw err;
+    const box = document.getElementById('matchSelect');
+    if (!matches.length) {
+      box.innerHTML = "<option>No matches</option>";
+      return;
     }
-  }
 
-  async function loadMatches() {
-    el('matchHelper').textContent = 'Loading matches...';
-    try {
-      const matches = await fetchJson('/api/matches');
-      if (!Array.isArray(matches) || !matches.length) {
-        el('matchSelect').innerHTML = '<option value="">No matches</option>';
-        el('contests').innerHTML = '<div class="muted">No matches available</div>';
-        el('matchHelper').textContent = '';
-        return;
-      }
-      el('matchSelect').innerHTML = matches.map(m => `<option value="${m._id}">${escapeHtml(m.name || m.title || ('Match ' + m._id))}</option>`).join('');
-      el('matchHelper').textContent = `${matches.length} match(es) loaded`;
-      // load contests for first match
-      await loadContests();
-    } catch (err) {
-      console.error('loadMatches error', err);
-      el('matchHelper').innerHTML = `<span class="error">Failed to load matches: ${escapeHtml(err.message)}</span>`;
-      el('contests').innerHTML = '<div class="muted">Unable to load contests</div>';
+    box.innerHTML = matches.map(m => `
+      <option value="${m._id}">${m.name}</option>
+    `).join("");
+
+    loadContests(matches[0]._id);
+
+    box.addEventListener("change", e => loadContests(e.target.value));
+
+  } catch (err) {
+    console.error(err);
+  }
+})();
+
+
+// ---------------------------
+// Load contests for a match
+// ---------------------------
+async function loadContests(matchId) {
+  const box = document.getElementById("contestList");
+
+  try {
+    const r = await fetch(`/api/matches/${matchId}/contests`);
+    const contests = await r.json();
+
+    if (!contests.length) {
+      box.innerHTML = "<div class='muted'>No contests for this match.</div>";
+      return;
     }
+
+    box.innerHTML = contests.map(c => `
+      <div class="match-row">
+        <strong>${c.title}</strong><br>
+        <span class="muted small">${c.entryFee} entry • Max ${c.maxEntries || '-'} entries</span><br>
+        <button class="btn-primary" style="margin-top:6px;" onclick="joinContest('${c._id}', '${c.matchId}')">
+          Join
+        </button>
+      </div>
+    `).join("");
+
+  } catch (err) {
+    console.error(err);
+    box.innerHTML = "Failed to load contests.";
+  }
+}
+
+
+// ---------------------------
+// Join Contest
+// ---------------------------
+async function joinContest(contestId, matchId) {
+  const token = localStorage.getItem("token");
+
+  if (!token) {
+    alert("Please login before joining a contest.");
+    return;
   }
 
-  async function loadContests() {
-    const matchId = el('matchSelect').value;
-    if (!matchId) { el('contests').innerHTML = '<div class="muted">Choose a match</div>'; return; }
-    el('contests').innerHTML = '<div class="muted">Loading contests...</div>';
-    try {
-      const data = await fetchJson(`/api/matches/${matchId}/contests`);
-      if (!Array.isArray(data) || !data.length) { el('contests').innerHTML = '<div class="muted">No contests for this match</div>'; return; }
+  // First check if user has a team for this match
+  const hasTeam = await checkIfUserHasTeam(matchId);
 
-      el('contests').innerHTML = data.map(c => {
-        const title = escapeHtml(c.title || 'Untitled contest');
-        const fee = (c.entryFee == null) ? '—' : (escapeHtml(String(c.entryFee)));
-        const players = Array.isArray(c.players) ? c.players.length : '—';
-        return `
-          <div class="contest-card" data-contest-id="${c._id}">
-            <div class="contest-info">
-              <div><strong>${title}</strong></div>
-              <div class="small">Entry: ${fee} • Teams: ${players} • ID: ${escapeHtml(c._id)}</div>
-            </div>
-            <div class="controls">
-              <button data-act="join" data-id="${c._id}">Join</button>
-              <button data-act="view" data-id="${c._id}">View</button>
-              <button data-act="delete" data-id="${c._id}">Delete</button>
-            </div>
-          </div>
-        `;
-      }).join('');
-    } catch (err) {
-      console.error('loadContests error', err);
-      el('contests').innerHTML = `<div class="error">Error loading contests: ${escapeHtml(err.message)}</div>`;
+  if (!hasTeam) {
+    if (confirm("You must create a team to join this contest. Create now?")) {
+      window.location.href = "/create-team.html";
     }
+    return;
   }
 
-  // join contest
-  async function joinContest(contestId) {
-    try {
-      const viewerName = prompt('Your display name');
-      if (!viewerName) return;
-      // placeholder players array; adapt to your create-team flow as needed
-      const payload = { viewerName, players: [], captain: null };
-      const res = await fetchJson(`/api/contests/${contestId}/join`, { method: 'POST', headers: makeHeaders(true), body: JSON.stringify(payload) });
-      alert('Joined: ' + (res.message || 'OK'));
-      // optionally refresh contests to update teams count
-      await loadContests();
-    } catch (err) {
-      alert('Failed to join: ' + err.message);
-    }
+  const viewerName = prompt("Enter your display name:");
+
+  if (!viewerName || viewerName.trim() === "") {
+    alert("Display name is required.");
+    return;
   }
 
-  // view contest (opens new tab to admin/view route if available)
-  function viewContest(contestId) {
-    // try to open a UI route if you have one; fallback to API inspect
-    const uiUrl = `/contests/${contestId}`; // change if your frontend route differs
-    window.open(uiUrl, '_blank');
-  }
+  // Create entry
+  const payload = {
+    viewerName,
+    players: [],      // server ignores players for contest join
+    captain: null
+  };
 
-  // delete contest (admin)
-  async function deleteContest(contestId) {
-    if (!confirm('Delete this contest? This action cannot be undone.')) return;
-    try {
-      await fetchJson(`/api/contests/${contestId}`, { method: 'DELETE', headers: makeHeaders(false, true) });
-      alert('Contest deleted');
-      await loadContests();
-    } catch (err) {
-      alert('Failed to delete contest: ' + err.message);
-    }
-  }
-
-  // delete match (admin)
-  async function deleteMatch(matchId) {
-    if (!matchId) return alert('No match selected');
-    if (!confirm('Delete this match and all its contests? This is irreversible.')) return;
-    try {
-      await fetchJson(`/api/matches/${matchId}`, { method: 'DELETE', headers: makeHeaders(false, true) });
-      alert('Match deleted');
-      // reload matches
-      await loadMatches();
-    } catch (err) {
-      alert('Failed to delete match: ' + err.message);
-    }
-  }
-
-  // delegated click handler for contest buttons
-  el('contests').addEventListener('click', (ev) => {
-    const btn = ev.target.closest('button');
-    if (!btn) return;
-    const action = btn.getAttribute('data-act');
-    const id = btn.getAttribute('data-id');
-    if (action === 'join') joinContest(id);
-    else if (action === 'view') viewContest(id);
-    else if (action === 'delete') deleteContest(id);
+  const r = await fetch(`/api/contests/${contestId}/join`, {
+    method: "POST",
+    headers: { "Content-Type":"application/json" },
+    body: JSON.stringify(payload)
   });
 
-  // add a small UI for deleting the selected match (admin)
-  const matchSelectWrap = el('matchSelect').parentElement;
-  const delMatchBtn = document.createElement('button');
-  delMatchBtn.type = 'button';
-  delMatchBtn.textContent = 'Delete match';
-  delMatchBtn.style.marginLeft = '8px';
-  delMatchBtn.addEventListener('click', () => deleteMatch(el('matchSelect').value));
-  matchSelectWrap.appendChild(delMatchBtn);
+  const j = await r.json();
 
-  // helper: escape HTML to avoid injection while rendering
-  function escapeHtml(str) {
-    if (str == null) return '';
-    return String(str)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
+  if (j.ok) {
+    alert("Joined contest successfully!");
+    return;
+  } else {
+    alert("Error: " + (j.error || "unknown"));
   }
+}
 
-  // wire change on select
-  el('matchSelect').addEventListener('change', loadContests);
 
-  // initial load
-  loadMatches();
+// ---------------------------
+// Check if the user has a team
+// ---------------------------
+async function checkIfUserHasTeam(matchId) {
+  const r = await fetch(`/api/matches/${matchId}/teams`);
+  try {
+    const teams = await r.json();
 
-})();
+    const token = localStorage.getItem("token");
+    if (!token) return false;
+
+    const me = await fetch("/api/me", { headers:{ Authorization:"Bearer " + token }});
+    const user = await me.json();
+
+    const myName = user?.user?.displayName;
+    if (!myName) return false;
+
+    return teams.some(t => t.viewerName === myName);
+
+  } catch {
+    return false;
+  }
+}
 </script>
+
 </body>
 </html>

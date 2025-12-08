@@ -1,16 +1,96 @@
 <!doctype html>
-<html><head><meta charset="utf-8"/><title>Auth success</title></head><body>
-  <h3>Auth success</h3>
-  <p id="status">Signing you in...</p>
-  <script>
-    (function(){
-      const params = new URLSearchParams(window.location.search);
-      const token = params.get('token');
-      if (token) {
-        localStorage.setItem('token', token);
-        document.getElementById('status').textContent = 'Signed in. Redirecting...';
-        setTimeout(()=> location.href = '/dashboard.html', 800);
-      } else document.getElementById('status').textContent = 'No token found';
-    })();
-  </script>
-</body></html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Signing in… • Beowulf</title>
+  <link rel="stylesheet" href="/css/style.css" />
+  <style>
+    /* keep auth pages clean — hide app layout if it loads */
+    .sidebar, .topbar { display:none !important; }
+    body { background: #0b0b0f; color: #fff; font-family: Inter, sans-serif; }
+    .auth-box {
+      max-width: 520px; margin: 8vh auto; padding: 28px; border-radius: 14px;
+      background: #121217; border: 1px solid rgba(255,255,255,0.03);
+      text-align:center; box-shadow: 0 8px 30px rgba(0,0,0,0.6);
+    }
+    .muted { color: #9aa6b6; }
+    .small { font-size: 0.92rem; }
+    .loader { margin: 16px auto; width: 48px; height: 48px; border-radius: 50%;
+      border: 4px solid rgba(224,33,63,0.14); border-top-color: #e0213f; animation: spin 1s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+<div class="auth-box">
+  <h2>Signing you in…</h2>
+  <div class="muted small" id="msg">Processing authentication — please wait.</div>
+  <div class="loader" aria-hidden="true"></div>
+  <div style="margin-top:14px;" id="debug" class="tiny muted"></div>
+</div>
+
+<script>
+(async function(){
+  // Try to extract id_token or credential from URL (supports multiple Google flows)
+  const qs = new URLSearchParams(window.location.search);
+  const id_token = qs.get('id_token') || qs.get('credential') || null;
+
+  const msg = (t)=> document.getElementById('msg').textContent = t;
+  const dbg = (t)=> document.getElementById('debug').textContent = t;
+
+  if (!id_token) {
+    // Some flows return the token in hash
+    const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+    const id2 = hash.get('id_token') || hash.get('credential') || null;
+    if (id2) {
+      dbg('Found token in hash.');
+      await postIdToken(id2);
+      return;
+    }
+
+    msg('No id_token found in URL. Redirecting to login.');
+    setTimeout(()=> window.location = '/login.html', 1500);
+    return;
+  }
+
+  await postIdToken(id_token);
+
+  async function postIdToken(token) {
+    try {
+      msg('Verifying token with server...');
+      dbg('Posting to /api/auth/google-idtoken ...');
+
+      const r = await fetch('/api/auth/google-idtoken', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id_token: token })
+      });
+
+      const j = await r.json();
+
+      if (j.ok && j.token) {
+        // save token + user info
+        localStorage.setItem('token', j.token);
+        // optional: store displayName for quick checks
+        if (j.user && j.user.displayName) localStorage.setItem('displayName', j.user.displayName);
+        msg('Signed in successfully! Redirecting…');
+        setTimeout(()=> window.location = '/dashboard.html', 700);
+        return;
+      }
+
+      // server rejected token
+      msg('Authentication failed: ' + (j.error || 'Unknown'));
+      dbg(JSON.stringify(j));
+      setTimeout(()=> window.location = '/login.html', 2000);
+    } catch (err) {
+      msg('Network error during sign-in.');
+      dbg(String(err));
+      setTimeout(()=> window.location = '/login.html', 2000);
+    }
+  }
+})();
+</script>
+
+</body>
+</html>

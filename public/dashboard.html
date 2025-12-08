@@ -1,155 +1,149 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="utf-8">
-  <title>Be0wulf Fantasy Dashboard</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <script src="/socket.io/socket.io.js"></script>
-  <link rel="stylesheet" href="/css/style.css">
-
-  <style>
-    body { background:#020612; color:#fff; font-family: Arial, sans-serif; }
-    h1,h2,h3 { margin: 0 0 10px; }
-    .wrap { max-width: 1200px; margin: 0 auto; padding:20px; }
-    .grid { display:grid; grid-template-columns: repeat(auto-fit,minmax(280px,1fr)); gap:20px; }
-    .card { background:#0a1428; padding:20px; border-radius:12px; box-shadow:0 0 10px #000a; }
-    .leader-row { padding:6px 0; border-bottom:1px solid #123; }
-    .leader-row strong { color:#ffd166; }
-    .match-box { padding:10px; border-radius:8px; cursor:pointer; background:#071120; }
-    .match-box:hover { background:#0c1b32; }
-    .activeMatch { outline:2px solid #ffd166; }
-    button { padding:10px 14px; background:#ffd166; color:#000; border:0; border-radius:8px; font-weight:bold; cursor:pointer; }
-    .adminBar { background:#16233a; padding:10px; border-radius:8px; margin-bottom:20px; }
-    .muted { opacity:0.7; }
-  </style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dashboard • Beowulf Fantasy League</title>
+  <link rel="stylesheet" href="/css/style.css" />
 </head>
 
 <body>
-<div class="wrap">
 
-  <h1>Be0wulf Fantasy Dashboard</h1>
+<!-- Layout System -->
+<script src="/js/layout.js"></script>
 
-  <!-- ADMIN CONTROLS -->
-  <div class="adminBar">
-    <strong>Admin Token:</strong>
-    <input id="adminToken" placeholder="" style="padding:6px; border-radius:6px;">
-    <button onclick="saveAdminToken()">Save</button>
+<main class="main">
 
-    <div style="margin-top:10px;">
-      <a href="/admin/matches.html"><button>Matches</button></a>
-      <a href="/admin-roster.html"><button>Roster</button></a>
-      <a href="/admin-roster-generator.html"><button>Roster Generator</button></a>
-      <a href="/admin/contests.html"><button>Contests</button></a>
-    </div>
-  </div>
+  <h2>Your Dashboard</h2>
+  <p class="muted">Welcome back! Track your fantasy career, recent matches & season progress.</p>
 
-  <!-- MATCHES -->
-  <div class="card">
-    <h2>Live Matches</h2>
-    <div id="matchList" class="grid"></div>
-  </div>
+  <!-- USER SUMMARY -->
+  <section class="card">
+    <h3>Your Fantasy Summary</h3>
 
-  <!-- LEADERBOARD + DETAILS -->
-  <div class="grid">
-    <div class="card">
-      <h2>Leaderboard</h2>
-      <div id="leaderboard">Select a match</div>
-    </div>
+    <div id="userSummary" class="muted">Loading…</div>
+  </section>
 
-    <div class="card">
-      <h2>Top Players</h2>
-      <div id="topPlayers">Select a match</div>
-    </div>
-  </div>
+  <!-- RECENT MATCHES JOINED -->
+  <section class="card">
+    <h3>Your Recent Matches</h3>
+    <div id="recentMatches" class="muted">Loading…</div>
+  </section>
 
-</div>
+  <!-- SEASON RANK -->
+  <section class="card">
+    <h3>Your Season Rank</h3>
+    <div id="seasonRank" class="muted">Loading…</div>
+  </section>
+
+</main>
+
 
 <script>
-const el = id => document.getElementById(id);
-const socket = io();
-let selectedMatch = null;
+// Load User Summary (name + avatar + total teams)
+(async function() {
+  const token = localStorage.getItem("token");
+  const box = document.getElementById("userSummary");
 
-// Save token
-function saveAdminToken() {
-  sessionStorage.setItem("adminToken", el("adminToken").value.trim());
-  alert("Admin token saved.");
-}
+  if (!token) {
+    box.innerHTML = "Please <a href='/login.html'>login</a> to view dashboard.";
+    return;
+  }
 
-// Load matches
-async function loadMatches() {
-  const r = await fetch("/api/matches");
-  const matches = await r.json();
+  const r = await fetch("/api/me", { headers:{ Authorization: "Bearer " + token }});
+  const j = await r.json();
 
-  el("matchList").innerHTML = matches.map(m => `
-    <div class="match-box" onclick="selectMatch('${m._id}')" id="match_${m._id}">
-      <h3>${m.name}</h3>
-      <div class="muted">${formatTime(m.startTime)}</div>
+  if (!j.ok) {
+    box.innerHTML = "Unable to load profile.";
+    return;
+  }
+
+  const u = j.user;
+  box.innerHTML = `
+    <div style="display:flex;align-items:center;gap:14px;">
+      <img src="${u.avatarUrl || '/assets/default-avatar.png'}" style="width:60px;height:60px;border-radius:8px;">
+      <div>
+        <strong>${u.displayName || "Viewer"}</strong><br>
+        <span class="muted">${u.email || ""}</span>
+      </div>
     </div>
-  `).join("");
-}
+  `;
+})();
 
-// Format match start
-function formatTime(t) {
+
+// Recent Matches (teams user created or joined)
+(async function() {
+  const box = document.getElementById("recentMatches");
   try {
-    const d = new Date(t);
-    return d.toLocaleString();
-  } catch { return ""; }
-}
+    const r = await fetch("/api/matches");
+    const matches = await r.json();
 
-// Select a match
-function selectMatch(id) {
-  selectedMatch = id;
+    if (!matches || matches.length === 0) {
+      box.innerHTML = "<div class='muted'>No matches yet.</div>";
+      return;
+    }
 
-  document.querySelectorAll(".match-box").forEach(x => x.classList.remove("activeMatch"));
-  el("match_" + id).classList.add("activeMatch");
+    box.innerHTML = matches.slice(0, 5).map(m => `
+      <div class="match-row">
+        <strong>${m.name}</strong>
+        <div class="muted small">${m.teamA} vs ${m.teamB}</div>
+        <div class="muted small">${new Date(m.startTime).toLocaleString()}</div>
+        <a href="/leaderboard.html?match=${m._id}" class="btn-ghost" style="margin-top:6px;">View Leaderboard</a>
+      </div>
+    `).join("");
 
-  loadLeaderboard(id);
-  loadTopPlayers(id);
+  } catch {
+    box.innerHTML = "Error loading matches.";
+  }
+})();
 
-  socket.emit("joinMatch", id);
-}
 
-// Load leaderboard
-async function loadLeaderboard(matchId) {
-  const r = await fetch(`/api/matches/${matchId}/leaderboard`);
-  const j = await r.json();
+// Season Rank
+(async function(){
+  const box = document.getElementById("seasonRank");
 
-  if (!j.ok) return el("leaderboard").textContent = "No leaderboard";
+  try {
+    const r = await fetch("/api/season/leaderboard");
+    const j = await r.json();
 
-  el("leaderboard").innerHTML = j.leaderboard.map((row, i) => `
-    <div class="leader-row">
-      ${i+1}. <strong>${row.name || row.viewerName}</strong> — ${row.total} pts
-    </div>
-  `).join("") || "No teams yet.";
-}
+    if (!j.ok || j.leaderboard.length === 0) {
+      box.innerHTML = "<div class='muted'>No season data yet.</div>";
+      return;
+    }
 
-// Load top players
-async function loadTopPlayers(matchId) {
-  const r = await fetch(`/api/matches/${matchId}/players`);
-  const j = await r.json();
+    const token = localStorage.getItem("token");
+    let viewerName = "";
+    if (token) {
+      const me = await fetch("/api/me", { headers:{ Authorization:"Bearer " + token }});
+      const d = await me.json();
+      viewerName = d?.user?.displayName || "";
+    }
 
-  if (!j.players) return el("topPlayers").textContent = "No players";
+    if (!viewerName) {
+      box.innerHTML = "<div class='muted'>Login to view your rank.</div>";
+      return;
+    }
 
-  // Sort by credits (proxy for ranking)
-  const top = j.players.slice(0, 10);
+    let rank = j.leaderboard.findIndex(v => v.viewerName === viewerName);
+    if (rank === -1) {
+      box.innerHTML = "<div class='muted'>No entries yet.</div>";
+      return;
+    }
 
-  el("topPlayers").innerHTML = top.map(p => `
-    <div>${p.playerName} — ${p.role} (${p.credits})</div>
-  `).join("");
-}
+    rank = rank + 1;
+    const total = j.leaderboard[rank - 1].total;
 
-// LIVE updates
-socket.on("leaderboardUpdate", data => {
-  if (selectedMatch && data.matchId === selectedMatch)
-    loadLeaderboard(selectedMatch);
-});
-
-socket.on("rosterUpdate", data => {
-  if (selectedMatch && data.matchId === selectedMatch)
-    loadTopPlayers(selectedMatch);
-});
-
-loadMatches();
+    box.innerHTML = `
+      <div class="stat-card">
+        <div class="stat-big">#${rank}</div>
+        <div class="muted">Your position in the season standings</div>
+        <div style="margin-top:8px;">Total Points: <strong>${total}</strong></div>
+      </div>
+    `;
+  } catch (err) {
+    box.innerHTML = "Failed loading season rank.";
+  }
+})();
 </script>
 
 </body>

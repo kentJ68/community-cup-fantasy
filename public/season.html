@@ -1,79 +1,171 @@
 <!doctype html>
-<html>
+<html lang="en">
+
 <head>
-  <meta charset="utf-8">
-  <title>Be0wulf Season Dashboard</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <link rel="stylesheet" href="/css/style.css">
-
-  <style>
-    body { background:#020612; color:#fff; font-family: Arial; }
-    .wrap { max-width:1200px; margin:0 auto; padding:20px; }
-    .card { background:#0a1428; padding:20px; margin:20px 0; border-radius:12px; }
-    .row { display:flex; gap:20px; flex-wrap:wrap; }
-    .rank { padding:8px 0; border-bottom:1px solid #123; }
-    .badge { background:#ffd166; color:#000; padding:6px 10px; border-radius:6px; margin:5px; display:inline-block; }
-    canvas { background:#071120; border-radius:12px; padding:10px; }
-  </style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Season • Beowulf Fantasy League</title>
+  <link rel="stylesheet" href="/css/style.css" />
 </head>
+
 <body>
-<div class="wrap">
 
-  <h1>Be0wulf Season Dashboard</h1>
+<!-- Global Layout (Topbar + Sidebar) -->
+<script src="/js/layout.js"></script>
 
-  <div class="card">
-    <h2>Season Leaderboard</h2>
-    <div id="seasonBoard">Loading...</div>
+<main class="main">
+
+  <h2>Season Overview</h2>
+  <p class="muted">View season leaderboard, badges, and viewer performance across all matches.</p>
+
+  <div class="grid" style="grid-template-columns: 1fr 380px; gap:16px;">
+    
+    <!-- LEFT: LEADERBOARD -->
+    <section class="card">
+      <h3>Season Leaderboard</h3>
+      <div id="seasonBoard" class="muted">Loading leaderboard…</div>
+    </section>
+
+    <!-- RIGHT: BADGES -->
+    <aside>
+      <section class="card">
+        <h3>Badges & Achievements</h3>
+        <div id="badgesBox" class="muted">Loading badges…</div>
+      </section>
+
+      <section class="card" style="margin-top:16px;">
+        <h3>Your Season Stats</h3>
+        <div id="myStats" class="muted">Loading…</div>
+      </section>
+    </aside>
+
   </div>
 
-  <div class="card">
-    <h2>Season Badges</h2>
-    <div id="badgeBox">Loading...</div>
-  </div>
-
-  <div class="card">
-    <h2>Season Analytics</h2>
-    <canvas id="chartSeason"></canvas>
-  </div>
-
-</div>
+</main>
 
 <script>
-async function loadSeason() {
-  // Leaderboard
-  const lb = await fetch("/api/season/leaderboard").then(r => r.json());
-  const board = lb.leaderboard;
-
-  document.getElementById("seasonBoard").innerHTML =
-    board.map((b, i) => `
-      <div class="rank">${i+1}. ${b.viewerName} — ${b.total} pts</div>
-    `).join("");
-
-  // Badges
-  const bd = await fetch("/api/season/badges").then(r => r.json());
-  document.getElementById("badgeBox").innerHTML =
-    bd.badges.map(b => `
-      <div class="badge">${b.viewerName} — ${b.type}</div>
-    `).join("");
-
-  // GRAPH
-  const labels = board.map(b => b.viewerName);
-  const totals = board.map(b => b.total);
-
-  new Chart(document.getElementById("chartSeason"), {
-    type: "bar",
-    data: {
-      labels,
-      datasets: [{
-        label: "Total Season Points",
-        data: totals
-      }]
+// -----------------------
+// Load Season Leaderboard
+// -----------------------
+async function loadSeasonLeaderboard() {
+  const box = document.getElementById("seasonBoard");
+  try {
+    const r = await fetch("/api/season/leaderboard");
+    const j = await r.json();
+    if (!j.ok || !j.leaderboard.length) {
+      box.innerHTML = "<div class='muted'>No leaderboard data yet</div>";
+      return;
     }
-  });
+
+    box.innerHTML = j.leaderboard
+      .slice(0, 100)
+      .map((row, i) => `
+        <div class="leader-row">
+          <div class="leader-rank">#${i + 1}</div>
+          <div class="leader-user"><strong>${row.viewerName}</strong></div>
+          <div class="leader-points">${row.total} pts</div>
+        </div>
+      `)
+      .join("");
+
+  } catch (e) {
+    box.innerHTML = "Failed to load season leaderboard.";
+  }
 }
 
-loadSeason();
+// -----------------------
+// Load Season Badges
+// -----------------------
+async function loadBadges() {
+  const box = document.getElementById("badgesBox");
+  try {
+    const r = await fetch("/api/season/badges");
+    const j = await r.json();
+
+    if (!j.ok || !j.badges.length) {
+      box.innerHTML = "<div class='muted'>No badges awarded yet</div>";
+      return;
+    }
+
+    box.innerHTML = j.badges
+      .map(b => `
+        <div class="badge">
+          <strong>${b.type}</strong><br>
+          <span class="muted small">${b.viewerName || ""}</span>
+          ${b.matchName ? `<br><span class="muted small">${b.matchName}</span>` : ""}
+        </div>
+      `)
+      .join("");
+
+  } catch (e) {
+    box.innerHTML = "Failed to load badges";
+  }
+}
+
+// -----------------------
+// Load Viewer’s Own Season Stats
+// -----------------------
+async function loadMyStats() {
+  const box = document.getElementById("myStats");
+  const token = localStorage.getItem("token");
+
+  if (!token) {
+    box.innerHTML = "Login to view your season stats.";
+    return;
+  }
+
+  try {
+    // Get user name first
+    const me = await fetch("/api/me", {
+      headers: { Authorization: "Bearer " + token }
+    });
+    const meJson = await me.json();
+
+    if (!meJson.ok) {
+      box.innerHTML = "Login again to view stats.";
+      return;
+    }
+
+    const viewer = meJson.user.displayName;
+
+    // Load season board
+    const r = await fetch("/api/season/leaderboard");
+    const j = await r.json();
+
+    if (!j.ok || !j.leaderboard.length) {
+      box.innerHTML = "<div class='muted'>Season has not started yet.</div>";
+      return;
+    }
+
+    const rank = j.leaderboard.findIndex(x => x.viewerName === viewer);
+
+    if (rank === -1) {
+      box.innerHTML = `
+        <div class="muted">You have not participated this season yet.</div>
+      `;
+      return;
+    }
+
+    const total = j.leaderboard[rank].total;
+
+    box.innerHTML = `
+      <div class="stat-card">
+        <div class="stat-big">#${rank + 1}</div>
+        <div class="muted small">Your Season Rank</div>
+        <div style="margin-top:8px;">Total Points: <strong>${total}</strong></div>
+      </div>
+    `;
+
+  } catch (e) {
+    box.innerHTML = "Could not load your stats.";
+  }
+}
+
+
+// INIT PAGE
+loadSeasonLeaderboard();
+loadBadges();
+loadMyStats();
 </script>
 
 </body>

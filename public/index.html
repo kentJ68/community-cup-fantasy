@@ -4,121 +4,161 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Beowulf Community Cup</title>
-
   <link rel="stylesheet" href="/css/style.css" />
-  <link rel="icon" href="/assets/logo.png" />
 </head>
 <body>
   <div class="app">
-    <aside class="sidebar">
-      <div class="brand">
-        <img src="/assets/logo.png" alt="logo" class="logo" onerror="this.style.display='none'"/>
-        <div>
-          <h1>Beowulf</h1>
-          <p class="sub">Community Cup</p>
-        </div>
-      </div>
-
-      <nav class="nav">
-        <a href="/dashboard.html" class="nav-link">Dashboard</a>
-        <a href="/create-team.html" class="nav-link">Create Team</a>
-        <a href="/contests.html" class="nav-link">Contests</a>
-        <a href="/leaderboard.html" class="nav-link">Leaderboard</a>
-
-        <!-- ADDED: League link (new page) -->
-        <a href="/league.html" class="nav-link">League</a>
-
-        <a href="/admin/matches.html" class="nav-link">Admin</a>
-      </nav>
-
-      <div class="sidebar-footer muted">Live • T10 • Viewer-owned</div>
-    </aside>
+    <script src="/js/layout.js"></script>
 
     <main class="main">
-      <header class="main-head">
-        <div>
-          <h2>Beowulf Community Cup</h2>
-          <div class="crumbs">Fixtures • Join contests • Create teams</div>
-        </div>
-        <div class="header-actions">
-          <a class="link" href="/dashboard.html">Dashboard</a>
-          <a class="link" href="/profile.html">Profile</a>
-
-          <!-- ADDED: quick League button in header -->
-          <a class="link" href="/league.html" title="League Dashboard">League</a>
-        </div>
-      </header>
-
-      <!-- HERO -->
-      <section class="hero card">
+      <section class="card hero">
         <div class="hero-left">
-          <h3>Bring your viewers into the action</h3>
-          <p class="muted">
-            Build fantasy teams, run contests, and show off viewer-owned squads
-            directly on stream. Fully real-time scoring & leaderboards.
+          <h1 style="margin-bottom:6px;">Welcome to the Beowulf Fantasy League</h1>
+          <p class="muted" style="max-width:720px;">
+            Join contests, build your dream XI, track leaderboards, and compete for season-long glory.
+            Real-time scoring powered by viewer participation.
           </p>
 
-          <div class="hero-actions">
+          <div style="margin-top:14px; display:flex; gap:10px; flex-wrap:wrap;">
             <a class="btn-primary" href="/create-team.html">Create Team</a>
             <a class="btn-ghost" href="/contests.html">Browse Contests</a>
+            <span id="healthPill" class="status-pill" style="margin-left:8px">Checking server…</span>
           </div>
         </div>
 
-        <div class="hero-right">
-          <div class="status-pill" id="health">Checking server…</div>
+        <div class="hero-right" style="align-self:flex-start;">
+          <!-- small dashboard summary -->
+          <div class="card small" style="width:220px;">
+            <div style="font-weight:700;font-size:1rem;">Season</div>
+            <div class="muted small" style="margin-top:6px;">Accumulated points across matches</div>
+            <div style="margin-top:12px;">
+              <div class="season-stat">—</div>
+              <div class="season-label">Top Rank: <span id="topRank">—</span></div>
+            </div>
+          </div>
         </div>
       </section>
 
-      <!-- UPCOMING MATCHES -->
-      <section class="grid">
-        <article class="card" id="upcomingMatches">
-          <h4>Upcoming Matches</h4>
-          <div class="muted">Loading matches…</div>
-        </article>
+      <section class="card">
+        <h3>Upcoming Matches</h3>
+        <div id="upcomingMatches" class="muted">Loading matches…</div>
       </section>
 
-      <footer class="footer muted">© Beowulf Community Cup</footer>
     </main>
   </div>
 
-  <script src="/js/app.js"></script>
-
-  <script>
-    // Small initial loader: health + upcoming matches
-    (async function() {
-      const status = document.getElementById('health');
+<script>
+  // small helper: prefer App.get if available
+  async function apiGet(path){
+    if (window.App && typeof window.App.get === 'function'){
       try {
-        const r = await fetch('/api/health');
-        const j = await r.json();
-        status.textContent = j.ok ? 'Server OK' : 'Server error';
-      } catch (e) {
-        status.textContent = 'Offline';
+        const r = await App.get(path);
+        if (r && r.ok) return r.data || r;
+        // if App.get returns safeJson wrapper, r.data holds actual data
+        if (r && r.data) return r.data;
+        return r;
+      } catch(e){
+        // fallback to fetch
+      }
+    }
+
+    const res = await fetch(path);
+    if (!res.ok) throw new Error('Network error: ' + res.status);
+    return res.json();
+  }
+
+  // Format date nicely
+  function fmtDate(d){
+    if (!d) return '';
+    try { return new Date(d).toLocaleString(); } catch(e){ return d; }
+  }
+
+  // Load server health
+  async function loadHealth(){
+    const pill = document.getElementById('healthPill');
+    try {
+      const j = await apiGet('/api/health');
+      if (j && (j.ok || j.time)){
+        pill.textContent = 'Server Online';
+        pill.classList.add('ok');
+      } else {
+        pill.textContent = 'Server Issue';
+      }
+    } catch (e){
+      pill.textContent = 'Offline';
+    }
+  }
+
+  // Render upcoming matches
+  async function loadMatches(){
+    const box = document.getElementById('upcomingMatches');
+    box.innerHTML = '<div class="muted">Loading matches…</div>';
+    try {
+      const matches = await apiGet('/api/matches');
+      if (!matches || matches.length === 0){
+        box.innerHTML = '<div class="muted">No matches scheduled</div>';
+        return;
       }
 
-      const box = document.getElementById('upcomingMatches');
-      try {
-        const r = await fetch('/api/matches');
-        const matches = await r.json();
+      // Sort by startTime ascending
+      matches.sort((a,b)=>{
+        const ta = a.startTime ? new Date(a.startTime).getTime() : 0;
+        const tb = b.startTime ? new Date(b.startTime).getTime() : 0;
+        return ta - tb;
+      });
 
-        if (!matches || matches.length === 0) {
-          box.innerHTML = "<div class='muted'>No matches scheduled</div>";
-          return;
-        }
-
-        box.innerHTML = `
-          <h4>Upcoming Matches</h4>
-          ${matches.slice(0, 6).map(m => `
-            <div class="match-row">
-              <strong>${m.name}</strong>
-              <div class="muted">${m.teamA || ''} vs ${m.teamB || ''}</div>
-              <div class="muted small">${m.startTime ? new Date(m.startTime).toLocaleString() : ''}</div>
+      box.innerHTML = matches.map(m => {
+        // Use m.name if present; otherwise create from teamA vs teamB
+        const title = m.name && m.name.trim() ? m.name : `${m.teamA || ''} vs ${m.teamB || ''}`;
+        const teams = (m.teamA || m.teamB) ? `${m.teamA || ''} vs ${m.teamB || ''}` : '';
+        const time = m.startTime ? fmtDate(m.startTime) : '';
+        return `
+          <div class="match-list-item">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+              <div style="flex:1;">
+                <strong>${escapeHtml(title)}</strong>
+                <div class="muted small">${escapeHtml(teams)}</div>
+              </div>
+              <div style="white-space:nowrap;text-align:right;">
+                <div class="muted small">${escapeHtml(time)}</div>
+                <div style="margin-top:6px;">
+                  <a class="btn-ghost small" href="/contests.html?match=${encodeURIComponent(m._id || '')}">Contests</a>
+                  <a class="btn-ghost small" href="/leaderboard.html?match=${encodeURIComponent(m._id || '')}" style="margin-left:8px;">Leaderboard</a>
+                </div>
+              </div>
             </div>
-          `).join('')}
+          </div>
         `;
-      } catch (err) {
-        box.innerHTML = "<div class='muted'>Failed to load matches</div>";
-      }
-    })();
-  </script>
+      }).join('');
+
+    } catch (err){
+      console.error(err);
+      box.innerHTML = '<div class="muted">Failed to load matches</div>';
+    }
+  }
+
+  // basic escape to avoid accidental HTML injection
+  function escapeHtml(s){
+    if (!s && s !== 0) return '';
+    return String(s)
+      .replace(/&/g,'&amp;')
+      .replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;')
+      .replace(/'/g,'&#39;');
+  }
+
+  // init
+  (function(){
+    loadHealth();
+    loadMatches();
+
+    // if App available, initialize it
+    try { if (window.App && typeof App.init === 'function') App.init(); } catch(e){}
+
+    // auto refresh matches when coming back from other pages
+    window.addEventListener('focus', () => { loadHealth(); loadMatches(); });
+  })();
+</script>
 </body>
 </html>
