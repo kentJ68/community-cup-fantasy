@@ -1,0 +1,80 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Be0wulf Season Dashboard</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="stylesheet" href="/css/style.css">
+
+  <style>
+    body { background:#020612; color:#fff; font-family: Arial; }
+    .wrap { max-width:1200px; margin:0 auto; padding:20px; }
+    .card { background:#0a1428; padding:20px; margin:20px 0; border-radius:12px; }
+    .row { display:flex; gap:20px; flex-wrap:wrap; }
+    .rank { padding:8px 0; border-bottom:1px solid #123; }
+    .badge { background:#ffd166; color:#000; padding:6px 10px; border-radius:6px; margin:5px; display:inline-block; }
+    canvas { background:#071120; border-radius:12px; padding:10px; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Be0wulf Season Dashboard</h1>
+
+  <div class="card">
+    <h2>Season Leaderboard</h2>
+    <div id="seasonBoard">Loading...</div>
+  </div>
+
+  <div class="card">
+    <h2>Season Badges</h2>
+    <div id="badgeBox">Loading...</div>
+  </div>
+
+  <div class="card">
+    <h2>Season Analytics</h2>
+    <canvas id="chartSeason"></canvas>
+  </div>
+
+</div>
+
+<script>
+async function loadSeason() {
+  // Leaderboard
+  const lb = await fetch("/api/season/leaderboard").then(r => r.json());
+  const board = lb.leaderboard;
+
+  document.getElementById("seasonBoard").innerHTML =
+    board.map((b, i) => `
+      <div class="rank">${i+1}. ${b.viewerName} — ${b.total} pts</div>
+    `).join("");
+
+  // Badges
+  const bd = await fetch("/api/season/badges").then(r => r.json());
+  document.getElementById("badgeBox").innerHTML =
+    bd.badges.map(b => `
+      <div class="badge">${b.viewerName} — ${b.type}</div>
+    `).join("");
+
+  // GRAPH
+  const labels = board.map(b => b.viewerName);
+  const totals = board.map(b => b.total);
+
+  new Chart(document.getElementById("chartSeason"), {
+    type: "bar",
+    data: {
+      labels,
+      datasets: [{
+        label: "Total Season Points",
+        data: totals
+      }]
+    }
+  });
+}
+
+loadSeason();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,43 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Leaderboard — Community Cup</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <div class="container">
+    <header><h1>Leaderboard</h1><a href="/">Home</a></header>
+
+    <main>
+      <section class="card">
+        <label>Match</label>
+        <select id="matchSelect"></select>
+      </section>
+
+      <section class="card">
+        <h3>Leaderboard</h3>
+        <div id="board">Select match</div>
+      </section>
+    </main>
+  </div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="/js/app.js"></script>
+<script>
+const el = id => document.getElementById(id);
+async function loadMatches(){ const r=await fetch('/api/matches'); const m=await r.json(); el('matchSelect').innerHTML = m.map(x=>`<option value="${x._id}">${x.name}</option>`).join(''); if(m[0]) loadBoard(m[0]._id); }
+async function loadBoard(matchId){
+  const r = await fetch(`/api/matches/${matchId}/leaderboard`);
+  const j = await r.json();
+  if (!j.ok) { el('board').textContent = 'No leaderboard'; return; }
+  el('board').innerHTML = j.leaderboard.map((row,i)=>`<div class="leader-row">${i+1}. <strong>${row.name||row.viewerName}</strong> — ${row.total} pts</div>`).join('');
+}
+document.getElementById('matchSelect').addEventListener('change', e=> loadBoard(e.target.value));
+const socket = io();
+socket.on('leaderboardUpdate', p => { if (p && p.matchId === document.getElementById('matchSelect').value) loadBoard(p.matchId); });
+loadMatches();
+</script>
+</body>
+</html>

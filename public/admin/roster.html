@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Admin — Roster Manager</title>
+  <title>Admin — Roster</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <link rel="stylesheet" href="/css/style.css" />
 </head>
@@ -12,46 +12,79 @@
 
     <main>
       <section class="card">
-        <label>Match</label>
+        <label>Select Match</label>
         <select id="matchSelect"></select>
-        <input id="adminToken" placeholder="Admin token" />
+        <input id="adminToken" placeholder="Admin token (required)" />
       </section>
 
       <section class="card">
         <label>Upload CSV (playerName,role,realTeam,credits)</label>
         <input type="file" id="csvFile" accept=".csv" />
-        <button id="uploadBtn" class="btn">Upload CSV</button>
+        <button id="uploadBtn">Upload CSV</button>
         <div id="uploadMsg"></div>
       </section>
 
       <section class="card">
-        <h3>Preview</h3>
+        <h3>Roster Preview</h3>
         <div id="preview">No match selected</div>
       </section>
     </main>
   </div>
 
-<script src="/js/app.js"></script>
 <script>
 const el = id => document.getElementById(id);
-async function loadMatches(){ const r=await fetch('/api/matches'); const m=await r.json(); el('matchSelect').innerHTML = m.map(x=>`<option value="${x._id}">${x.name}</option>`).join(''); if(m[0]) loadPreview(m[0]._id); }
-async function loadPreview(matchId){
-  const r = await fetch(`/api/matches/${matchId}/players`);
-  if (!r.ok) { el('preview').textContent = 'No roster'; return; }
-  const j = await r.json();
-  el('preview').innerHTML = (j.players || []).map(p=>`<div>${p.playerName} — ${p.role} — ${p.realTeam} (${p.credits})</div>`).join('') || '<div>No players</div>';
+
+// Load matches
+async function loadMatches() {
+  const r = await fetch('/api/matches');
+  const m = await r.json();
+  el('matchSelect').innerHTML = m.map(x =>
+    `<option value="${x._id}">${x.name}</option>`
+  ).join('');
+
+  if (m[0]) loadPreview(m[0]._id);
 }
-el('matchSelect').addEventListener('change', e=> loadPreview(e.target.value));
-el('uploadBtn').addEventListener('click', async ()=>{
-  const f = el('csvFile').files[0];
-  if (!f) return alert('Choose CSV');
-  const token = el('adminToken').value.trim();
-  const fd = new FormData(); fd.append('rosterCsv', f);
-  const headers = token ? { 'x-admin-token': token } : {};
-  const r = await fetch(`/api/admin/matches/${el('matchSelect').value}/roster-csv`, { method:'POST', headers, body: fd });
+
+// Preview roster
+async function loadPreview(matchId) {
+  const r = await fetch(`/api/matches/${matchId}/players`);
   const j = await r.json();
-  if (j.ok) { el('uploadMsg').textContent = `Imported ${j.count}`; loadPreview(el('matchSelect').value); } else el('uploadMsg').textContent = 'Error: ' + (j.error||'');
+  const arr = j.players || [];
+  el('preview').innerHTML =
+    arr.length === 0
+      ? '<div>No players</div>'
+      : arr.map(p =>
+          `<div>${p.playerName} — ${p.role} — ${p.realTeam} (${p.credits})</div>`
+        ).join('');
+}
+
+// Upload CSV
+el('uploadBtn').addEventListener('click', async () => {
+  const file = el('csvFile').files[0];
+  if (!file) return alert("Choose a CSV file.");
+
+  const token = el('adminToken').value.trim();
+  if (!token) return alert("Enter admin token.");
+
+  const fd = new FormData();
+  fd.append("rosterCsv", file);
+
+  const r = await fetch(`/api/admin/matches/${el('matchSelect').value}/roster-csv`, {
+    method: "POST",
+    headers: { "x-admin-token": token },
+    body: fd
+  });
+
+  const j = await r.json();
+  if (j.ok) {
+    el('uploadMsg').textContent = `Imported ${j.count} players`;
+    loadPreview(el('matchSelect').value);
+  } else {
+    el('uploadMsg').textContent = "Error: " + j.error;
+  }
 });
+
+el('matchSelect').addEventListener('change', e => loadPreview(e.target.value));
 loadMatches();
 </script>
 </body>

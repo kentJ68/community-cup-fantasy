@@ -1,17 +1,20 @@
 // models/User.js
 const mongoose = require('mongoose');
 
-const userSchema = new mongoose.Schema({
-  email: { type: String, index: true, sparse: true },
+const UserSchema = new mongoose.Schema({
+  email: { type: String, required: true, unique: true, lowercase: true, trim: true },
   passwordHash: { type: String },
+  displayName: { type: String },
   googleId: { type: String, index: true, sparse: true },
-  displayName: { type: String, required: true },
-  avatarUrl: { type: String, default: null },
-  role: { type: String, enum: ['user','admin'], default: 'user' },
-  credits: { type: Number, default: 0 }, // wallet balance
-  twitchUrl: { type: String, default: null },
-  youtubeUrl: { type: String, default: null },
-  createdAt: { type: Date, default: Date.now }
-}, { versionKey: false });
+  avatarUrl: { type: String },
+  role: { type: String, default: 'user' },
+  credits: { type: Number, default: 0 },
+  twitchUrl: { type: String },
+  youtubeUrl: { type: String }
+}, { timestamps: true });
 
+// single index on email is created by `unique: true` in field
+// if you prefer schema-level index, remove unique above and uncomment below:
+// UserSchema.index({ email: 1 }, { unique: true });
 
+module.exports = mongoose.model('User', UserSchema);

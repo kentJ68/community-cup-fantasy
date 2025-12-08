@@ -22,7 +22,11 @@
 
     <script>
       window.onload = function(){
-        google.accounts.id.initialize({ client_id: "423596336574-494a3jakq4j47pomphrjlc48pi41ntuq.apps.googleusercontent.comnode server.js", callback: handleGoogleResponse });
+        // fixed: client id only (removed accidental 'node server.js' text)
+        google.accounts.id.initialize({
+          client_id: "423596336574-494a3jakq4j47pomphrjlc48pi41ntuq.apps.googleusercontent.com",
+          callback: handleGoogleResponse
+        });
         google.accounts.id.renderButton(document.getElementById("googleButton"), { theme: "outline", size: "large", width: 300 });
       }
       async function handleGoogleResponse(response) {

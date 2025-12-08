@@ -1,0 +1,53 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Be0wulf League</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="/css/style.css" />
+  <style>
+    body{font-family:Arial;background:#071020;color:#fff;padding:18px}
+    .wrap{max-width:1100px;margin:0 auto}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+    .team{padding:12px;border-radius:10px;color:#000;font-weight:700}
+    .card{background:#071127;padding:12px;border-radius:10px;margin-bottom:12px}
+    .fixture{padding:6px;border-bottom:1px solid #0b2030}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Be0wulf League</h1>
+    <div class="card">
+      <h3>Teams</h3>
+      <div id="teamGrid" class="grid">Loading teams…</div>
+    </div>
+
+    <div class="card">
+      <h3>Fixtures (Round-robin)</h3>
+      <div id="fixtures">Loading fixtures…</div>
+    </div>
+  </div>
+
+<script>
+async function loadTeams(){
+  const r = await fetch('/api/league/teams');
+  const j = await r.json();
+  if(!j.ok) return document.getElementById('teamGrid').textContent = 'No teams';
+  const html = j.teams.map(t => {
+    const logo = t.logo || `https://dummyimage.com/200x200/${t.color.replace('#','')}/ffffff&text=${encodeURIComponent(t.short)}`;
+    return `<div class="team" style="background:${t.color}"><img src="${logo}" width="36" style="vertical-align:middle;border-radius:6px;margin-right:8px" /> ${t.name}<div style="font-weight:400;font-size:0.9rem;margin-top:8px;color:#fff">${t.squad.slice(0,5).join(', ')}${t.squad.length>5?'…':''}</div></div>`
+  }).join('');
+  document.getElementById('teamGrid').innerHTML = html;
+}
+
+async function loadFixtures(){
+  const r = await fetch('/api/league/fixtures');
+  const j = await r.json();
+  if(!j.ok) return document.getElementById('fixtures').textContent = 'No fixtures';
+  document.getElementById('fixtures').innerHTML = j.fixtures.map(f => `<div class="fixture">Round ${f.round}: <strong>${f.home.short}</strong> vs <strong>${f.away.short}</strong> — ${f.home.name} vs ${f.away.name}</div>`).join('');
+}
+
+loadTeams(); loadFixtures();
+</script>
+</body>
+</html>

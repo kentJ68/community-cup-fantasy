@@ -1,46 +1,156 @@
 <!doctype html>
 <html>
 <head>
-  <meta charset="utf-8" />
-  <title>Dashboard — Community Cup</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <link rel="stylesheet" href="/css/style.css" />
+  <meta charset="utf-8">
+  <title>Be0wulf Fantasy Dashboard</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <script src="/socket.io/socket.io.js"></script>
+  <link rel="stylesheet" href="/css/style.css">
+
+  <style>
+    body { background:#020612; color:#fff; font-family: Arial, sans-serif; }
+    h1,h2,h3 { margin: 0 0 10px; }
+    .wrap { max-width: 1200px; margin: 0 auto; padding:20px; }
+    .grid { display:grid; grid-template-columns: repeat(auto-fit,minmax(280px,1fr)); gap:20px; }
+    .card { background:#0a1428; padding:20px; border-radius:12px; box-shadow:0 0 10px #000a; }
+    .leader-row { padding:6px 0; border-bottom:1px solid #123; }
+    .leader-row strong { color:#ffd166; }
+    .match-box { padding:10px; border-radius:8px; cursor:pointer; background:#071120; }
+    .match-box:hover { background:#0c1b32; }
+    .activeMatch { outline:2px solid #ffd166; }
+    button { padding:10px 14px; background:#ffd166; color:#000; border:0; border-radius:8px; font-weight:bold; cursor:pointer; }
+    .adminBar { background:#16233a; padding:10px; border-radius:8px; margin-bottom:20px; }
+    .muted { opacity:0.7; }
+  </style>
 </head>
+
 <body>
-  <div class="container">
-    <header><h1>Dashboard</h1><a href="/">Home</a></header>
+<div class="wrap">
 
-    <main>
-      <section class="card">
-        <h2>Upcoming Matches</h2>
-        <div id="matchesList">Loading...</div>
-      </section>
+  <h1>Be0wulf Fantasy Dashboard</h1>
 
-      <section class="card">
-        <h2>My Teams (placeholder)</h2>
-        <div id="myTeams">—</div>
-      </section>
-    </main>
+  <!-- ADMIN CONTROLS -->
+  <div class="adminBar">
+    <strong>Admin Token:</strong>
+    <input id="adminToken" placeholder="" style="padding:6px; border-radius:6px;">
+    <button onclick="saveAdminToken()">Save</button>
+
+    <div style="margin-top:10px;">
+      <a href="/admin/matches.html"><button>Matches</button></a>
+      <a href="/admin-roster.html"><button>Roster</button></a>
+      <a href="/admin-roster-generator.html"><button>Roster Generator</button></a>
+      <a href="/admin/contests.html"><button>Contests</button></a>
+    </div>
   </div>
 
-<script src="/js/app.js"></script>
+  <!-- MATCHES -->
+  <div class="card">
+    <h2>Live Matches</h2>
+    <div id="matchList" class="grid"></div>
+  </div>
+
+  <!-- LEADERBOARD + DETAILS -->
+  <div class="grid">
+    <div class="card">
+      <h2>Leaderboard</h2>
+      <div id="leaderboard">Select a match</div>
+    </div>
+
+    <div class="card">
+      <h2>Top Players</h2>
+      <div id="topPlayers">Select a match</div>
+    </div>
+  </div>
+
+</div>
+
 <script>
-(async function init(){
-  const el = id => document.getElementById(id);
-  async function loadMatches(){
-    const res = await fetch('/api/matches');
-    const matches = await res.json();
-    if (!matches || !matches.length) { el('matchesList').innerHTML = '<div class="muted">No matches</div>'; return; }
-    el('matchesList').innerHTML = matches.map(m => `
-      <div class="match-card">
-        <strong>${m.name}</strong><div>${m.teamA || ''} vs ${m.teamB || ''}</div>
-        <div>Start: ${m.startTime ? new Date(m.startTime).toLocaleString() : 'TBD'}</div>
-        <div class="muted"><a href="/create-team.html?match=${m._id}">Create Team</a> • <a href="/contests.html?match=${m._id}">Contests</a></div>
-      </div>
-    `).join('');
-  }
-  await loadMatches();
-})();
+const el = id => document.getElementById(id);
+const socket = io();
+let selectedMatch = null;
+
+// Save token
+function saveAdminToken() {
+  sessionStorage.setItem("adminToken", el("adminToken").value.trim());
+  alert("Admin token saved.");
+}
+
+// Load matches
+async function loadMatches() {
+  const r = await fetch("/api/matches");
+  const matches = await r.json();
+
+  el("matchList").innerHTML = matches.map(m => `
+    <div class="match-box" onclick="selectMatch('${m._id}')" id="match_${m._id}">
+      <h3>${m.name}</h3>
+      <div class="muted">${formatTime(m.startTime)}</div>
+    </div>
+  `).join("");
+}
+
+// Format match start
+function formatTime(t) {
+  try {
+    const d = new Date(t);
+    return d.toLocaleString();
+  } catch { return ""; }
+}
+
+// Select a match
+function selectMatch(id) {
+  selectedMatch = id;
+
+  document.querySelectorAll(".match-box").forEach(x => x.classList.remove("activeMatch"));
+  el("match_" + id).classList.add("activeMatch");
+
+  loadLeaderboard(id);
+  loadTopPlayers(id);
+
+  socket.emit("joinMatch", id);
+}
+
+// Load leaderboard
+async function loadLeaderboard(matchId) {
+  const r = await fetch(`/api/matches/${matchId}/leaderboard`);
+  const j = await r.json();
+
+  if (!j.ok) return el("leaderboard").textContent = "No leaderboard";
+
+  el("leaderboard").innerHTML = j.leaderboard.map((row, i) => `
+    <div class="leader-row">
+      ${i+1}. <strong>${row.name || row.viewerName}</strong> — ${row.total} pts
+    </div>
+  `).join("") || "No teams yet.";
+}
+
+// Load top players
+async function loadTopPlayers(matchId) {
+  const r = await fetch(`/api/matches/${matchId}/players`);
+  const j = await r.json();
+
+  if (!j.players) return el("topPlayers").textContent = "No players";
+
+  // Sort by credits (proxy for ranking)
+  const top = j.players.slice(0, 10);
+
+  el("topPlayers").innerHTML = top.map(p => `
+    <div>${p.playerName} — ${p.role} (${p.credits})</div>
+  `).join("");
+}
+
+// LIVE updates
+socket.on("leaderboardUpdate", data => {
+  if (selectedMatch && data.matchId === selectedMatch)
+    loadLeaderboard(selectedMatch);
+});
+
+socket.on("rosterUpdate", data => {
+  if (selectedMatch && data.matchId === selectedMatch)
+    loadTopPlayers(selectedMatch);
+});
+
+loadMatches();
 </script>
+
 </body>
 </html>

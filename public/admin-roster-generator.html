@@ -1,0 +1,122 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Roster Manager – Admin</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <script src="/socket.io/socket.io.js"></script>
+  <link rel="stylesheet" href="/css/style.css"/>
+</head>
+
+<body>
+  <div class="wrap">
+    <h1>Roster Manager — Admin</h1>
+
+    <div class="card">
+      <label>Select Match</label>
+      <select id="matchSelect"></select>
+      <input id="adminToken" placeholder="Admin Token (Ok12345)" />
+    </div>
+
+    <div class="card">
+      <label>Upload CSV Roster</label>
+      <input id="csvInput" type="file" accept=".csv" />
+      <button onclick="uploadCSV()">Upload</button>
+      <div id="csvMsg"></div>
+    </div>
+
+    <div class="card">
+      <label>Paste JSON Roster</label>
+      <textarea id="jsonInput"></textarea>
+      <button onclick="saveJSON()">Save JSON</button>
+      <button onclick="previewJSON()">Preview</button>
+      <div id="jsonMsg"></div>
+    </div>
+
+    <div class="card">
+      <h3>Current Roster</h3>
+      <div id="previewBox">Select a match</div>
+    </div>
+  </div>
+
+<script>
+const el = x => document.getElementById(x);
+
+// load matches
+async function loadMatches() {
+  const r = await fetch("/api/matches");
+  const m = await r.json();
+  el("matchSelect").innerHTML = m.map(o => 
+    `<option value="${o._id}">${o.name}</option>`
+  ).join("");
+  if (m[0]) loadPreview(m[0]._id);
+}
+
+// load preview
+async function loadPreview(id) {
+  const r = await fetch(`/api/matches/${id}/players`);
+  if (!r.ok) return el("previewBox").textContent = "No roster";
+
+  const j = await r.json();
+  el("previewBox").innerHTML = j.players.map(
+    p => `<div>${p.playerName} — ${p.role} — ${p.realTeam} (${p.credits})</div>`
+  ).join("") || "No players";
+}
+
+// Upload CSV
+async function uploadCSV() {
+  const file = el("csvInput").files[0];
+  const token = el("adminToken").value.trim();
+  if (!token) return alert("Enter admin token");
+
+  const fd = new FormData();
+  fd.append("rosterCsv", file);
+
+  const r = await fetch(`/api/admin/matches/${el('matchSelect').value}/roster-csv`, {
+    method: "POST",
+    headers: { "x-admin-token": token },
+    body: fd
+  });
+
+  const j = await r.json();
+  el("csvMsg").textContent = j.ok ? `Imported ${j.count}` : "Error: " + j.error;
+  loadPreview(el("matchSelect").value);
+}
+
+// Save JSON roster
+async function saveJSON() {
+  const token = el("adminToken").value.trim();
+  const txt = el("jsonInput").value.trim();
+  if (!token) return alert("Enter admin token");
+
+  let payload;
+  try { payload = JSON.parse(txt); }
+  catch (e) { return alert("Invalid JSON"); }
+
+  const r = await fetch(`/api/admin/matches/${el('matchSelect').value}/roster`, {
+    method: "POST",
+    headers: { "x-admin-token": token, "Content-Type": "application/json" },
+    body: JSON.stringify({ players: payload })
+  });
+
+  const j = await r.json();
+  el("jsonMsg").textContent = j.ok ? "Saved roster" : "Error: " + j.error;
+  loadPreview(el("matchSelect").value);
+}
+
+function previewJSON() {
+  try {
+    const arr = JSON.parse(el("jsonInput").value);
+    el("previewBox").innerHTML = arr.map(
+      p => `<div>${p.playerName} — ${p.role}</div>`
+    ).join("");
+  } catch {
+    el("jsonMsg").textContent = "Invalid JSON";
+  }
+}
+
+el("matchSelect").addEventListener("change", e => loadPreview(e.target.value));
+loadMatches();
+</script>
+</body>
+</html>
