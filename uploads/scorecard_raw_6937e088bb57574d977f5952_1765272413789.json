@@ -1,0 +1,14 @@
+{
+  "provider": "example",
+  "raw": {
+    "providerGuess": "naive-ocr",
+    "parsedBatting": [
+      {
+        "playerName": "de Kock (wk)",
+        "dismissal": "b Prasidh",
+        "runs": 106
+      }
+    ],
+    "parsedBowling": []
+  }
+}

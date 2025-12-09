@@ -1,0 +1,481 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Admin — Upload Scorecard • Beowulf</title>
+  <style>
+    :root{
+      --bg:#071018; --card:#0b1620; --muted:#8fb0b9; --accent:#48b0d6; --text:#e6eef3;
+      --input:#06232b;
+    }
+    html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,Segoe UI,Roboto,"Helvetica Neue",Arial;}
+    .wrap{max-width:980px;margin:28px auto;padding:18px;}
+    h1{margin:0 0 8px;font-size:20px}
+    .card{background:var(--card);padding:14px;border-radius:10px;border:1px solid rgba(255,255,255,0.03);margin-bottom:16px}
+    label{display:block;font-size:13px;margin-bottom:6px;color:var(--muted)}
+    input[type="text"],textarea,select{width:100%;background:var(--input);border:1px solid rgba(255,255,255,0.04);padding:8px;border-radius:8px;color:var(--text);box-sizing:border-box}
+    textarea{min-height:240px;resize:vertical}
+    .row{display:flex;gap:12px;align-items:center}
+    .col{flex:1}
+    button{background:transparent;border:1px solid rgba(255,255,255,0.06);padding:8px 12px;border-radius:8px;color:var(--text);cursor:pointer}
+    button.primary{background:var(--accent);border-color:transparent;color:#042028}
+    .muted{color:var(--muted);font-size:13px}
+    .meta{font-size:13px;color:var(--muted);margin-top:8px}
+    .preview { display:flex; gap:12px; align-items:flex-start; flex-wrap:wrap; margin-top:12px; }
+    .preview img{max-width:360px;border-radius:8px;border:1px solid rgba(255,255,255,0.03)}
+    .notes{font-size:13px;color:var(--muted);margin-top:8px}
+    .controls{display:flex;gap:8px;flex-wrap:wrap}
+    .small{font-size:13px;color:var(--muted)}
+    .success{color:#8de19c}
+    .error{color:#ff8080}
+    .footer{margin-top:16px;font-size:13px;color:var(--muted)}
+    code{background:#021018;padding:4px;border-radius:4px}
+    .flex{display:flex;gap:12px;align-items:center}
+    .w220{width:220px}
+    .w260{width:260px}
+    .w160{width:160px}
+    .two-col{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .json-preview{background:#02121a;padding:8px;border-radius:8px;max-height:220px;overflow:auto;font-family:monospace;font-size:12px}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Admin — Upload Scorecard</h1>
+
+    <div class="card">
+      <div style="display:flex;gap:12px;align-items:center;margin-bottom:8px;flex-wrap:wrap;">
+        <div class="w220">
+          <label>Admin token</label>
+          <input id="adminToken" type="text" placeholder="x-admin-token (kept in memory)" />
+        </div>
+
+        <div class="w260">
+          <label>Match ID</label>
+          <input id="matchId" type="text" placeholder="Paste match _id here (or select from dropdown)" />
+        </div>
+
+        <div class="w160">
+          <label>Provider</label>
+          <select id="provider">
+            <option value="example">example</option>
+            <!-- add providers as needed -->
+          </select>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:12px;align-items:center;margin-bottom:8px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:320px;">
+          <label>Auto-detect upcoming matches</label>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <select id="matchPicker" style="flex:1;">
+              <option value="">Loading matches…</option>
+            </select>
+            <button id="refreshMatchesBtn">Refresh</button>
+            <button id="fillMatchBtn">Use selected</button>
+          </div>
+          <div id="matchPickerMeta" class="meta">Select a match to auto-fill Match ID.</div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:12px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:280px;">
+          <h3 style="margin:6px 0 8px">Upload screenshot (Parsec / screenshot)</h3>
+          <div class="muted">Choose an image file saved from Parsec or your desktop. This will be sent to OCR.space (using your server API key) and OCR text will be returned for quick copy & paste.</div>
+
+          <div style="margin-top:8px;">
+            <input id="screenshotFile" type="file" accept="image/*" />
+            <div style="height:8px"></div>
+            <div class="controls">
+              <button id="uploadShotBtn" class="primary">Upload screenshot & OCR</button>
+              <button id="clearShotBtn">Clear</button>
+              <button id="autoConvertOcrBtn">Auto-convert OCR → JSON</button>
+            </div>
+            <div id="shotStatus" class="meta"></div>
+
+            <div id="previewArea" class="preview" style="display:none">
+              <div>
+                <div class="small">Saved image</div>
+                <a id="savedImageLink" target="_blank"><img id="savedImage" src="" alt="screenshot preview" /></a>
+                <div id="savedImagePath" class="meta"></div>
+              </div>
+              <div style="flex:1;min-width:260px;">
+                <div class="small">OCR result (editable)</div>
+                <textarea id="ocrText" placeholder="OCR text will appear here — edit / clean and copy into JSON editor below"></textarea>
+                <div style="margin-top:8px;">
+                  <button id="copyOcrBtn">Copy OCR text</button>
+                  <button id="pasteToJsonBtn">Paste OCR → JSON editor</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="flex:1;min-width:320px;">
+          <h3 style="margin:6px 0 8px">Raw scorecard JSON (recommended)</h3>
+          <div class="muted">Paste provider raw JSON here, then click <code>Process scorecard</code>. This will call <code>/api/admin/matches/:matchId/upload-scorecard</code> and run normalization + scoring.</div>
+
+          <textarea id="rawJson" placeholder='Paste raw scorecard JSON here (or paste OCR result and convert manually)...'></textarea>
+          <div style="margin-top:8px;display:flex;gap:8px;align-items:center;">
+            <button id="processJsonBtn" class="primary">Process scorecard</button>
+            <button id="validateJsonBtn">Validate JSON</button>
+            <div id="jsonStatus" class="meta"></div>
+          </div>
+
+          <div style="margin-top:12px">
+            <div class="small">Parsed preview</div>
+            <div id="parsedPreview" class="json-preview">No preview yet</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="notes">
+        <strong>Workflow tip:</strong> JSON upload is the most reliable. Use screenshot upload only when JSON isn't available. After OCR, clean text, convert into the JSON structure your provider or adapter expects, then Process.
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Responses / Logs</h3>
+      <div id="log" style="white-space:pre-wrap;max-height:260px;overflow:auto;background:#02121a;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.03)"></div>
+      <div class="footer">Once processed, the server updates <code>Match.stats</code> and recomputes team totals + emits socket updates.</div>
+    </div>
+  </div>
+
+<script>
+  (function(){
+    // elements
+    const adminTokenInput = document.getElementById('adminToken');
+    const matchIdInput = document.getElementById('matchId');
+    const matchPicker = document.getElementById('matchPicker');
+    const matchPickerMeta = document.getElementById('matchPickerMeta');
+    const refreshMatchesBtn = document.getElementById('refreshMatchesBtn');
+    const fillMatchBtn = document.getElementById('fillMatchBtn');
+
+    const screenshotFile = document.getElementById('screenshotFile');
+    const uploadShotBtn = document.getElementById('uploadShotBtn');
+    const clearShotBtn = document.getElementById('clearShotBtn');
+    const autoConvertOcrBtn = document.getElementById('autoConvertOcrBtn');
+    const shotStatus = document.getElementById('shotStatus');
+    const previewArea = document.getElementById('previewArea');
+    const savedImage = document.getElementById('savedImage');
+    const savedImageLink = document.getElementById('savedImageLink');
+    const savedImagePath = document.getElementById('savedImagePath');
+    const ocrText = document.getElementById('ocrText');
+    const copyOcrBtn = document.getElementById('copyOcrBtn');
+    const pasteToJsonBtn = document.getElementById('pasteToJsonBtn');
+
+    const rawJson = document.getElementById('rawJson');
+    const processJsonBtn = document.getElementById('processJsonBtn');
+    const validateJsonBtn = document.getElementById('validateJsonBtn');
+    const jsonStatus = document.getElementById('jsonStatus');
+    const parsedPreview = document.getElementById('parsedPreview');
+
+    const logBox = document.getElementById('log');
+
+    function log(...args){
+      const t = new Date().toLocaleString();
+      logBox.textContent = `[${t}] ` + args.map(a => (typeof a === 'string' ? a : JSON.stringify(a))).join(' ') + '\n' + logBox.textContent;
+    }
+
+    function getAdminHeaders() {
+      const token = adminTokenInput.value.trim();
+      const headers = {};
+      if (token) headers['x-admin-token'] = token;
+      return headers;
+    }
+
+    // FETCH MATCHES (auto-detect)
+    async function fetchMatches() {
+      matchPicker.disabled = true;
+      refreshMatchesBtn.disabled = true;
+      matchPicker.innerHTML = '<option>Loading matches…</option>';
+      matchPickerMeta.textContent = 'Fetching matches...';
+      try {
+        const headers = getAdminHeaders();
+        const res = await fetch('/api/matches', { headers });
+        const data = await res.json();
+        if (!Array.isArray(data)) {
+          matchPicker.innerHTML = '<option value="">Failed to load</option>';
+          matchPickerMeta.textContent = 'Failed to load matches (unexpected response)';
+          log('fetchMatches: unexpected response', data);
+          return;
+        }
+        const sorted = data.slice().sort((a,b)=> (new Date(a.startTime || 0) - new Date(b.startTime || 0)));
+        if (sorted.length === 0) {
+          matchPicker.innerHTML = '<option value="">No matches</option>';
+          matchPickerMeta.textContent = 'No matches available';
+          return;
+        }
+        matchPicker.innerHTML = '<option value="">— select a match —</option>' + sorted.map(m=>{
+          const s = m.startTime ? new Date(m.startTime).toLocaleString() : 'no time';
+          const teams = (m.teamA && m.teamB) ? ` (${m.teamA} vs ${m.teamB})` : '';
+          const label = `${m.name}${teams} — ${s}`;
+          return `<option value="${m._id}">${escapeHtml(label)}</option>`;
+        }).join('');
+        matchPickerMeta.textContent = `Loaded ${sorted.length} matches.`;
+        log('matches loaded', sorted.length);
+      } catch (err) {
+        console.error(err);
+        matchPicker.innerHTML = '<option value="">Load error</option>';
+        matchPickerMeta.textContent = 'Failed to load matches (network error)';
+        log('fetchMatches failed', err.message || err);
+      } finally {
+        matchPicker.disabled = false;
+        refreshMatchesBtn.disabled = false;
+      }
+    }
+
+    // escape helper
+    function escapeHtml(s) {
+      if (s === null || s === undefined) return '';
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    }
+
+    // wire match picker
+    refreshMatchesBtn.addEventListener('click', fetchMatches);
+    fillMatchBtn.addEventListener('click', () => {
+      const val = matchPicker.value;
+      if (!val) return alert('Select a match first');
+      matchIdInput.value = val;
+      log('matchId filled from picker: ' + val);
+    });
+
+    // initial fetch
+    fetchMatches();
+
+    // Upload screenshot & call server endpoint
+    uploadShotBtn.addEventListener('click', async () => {
+      const file = screenshotFile.files[0];
+      const matchId = matchIdInput.value.trim();
+      if (!file) return alert('Choose a screenshot file first');
+      if (!matchId) return alert('Enter or select matchId first');
+      uploadShotBtn.disabled = true;
+      clearShotBtn.disabled = true;
+      autoConvertOcrBtn.disabled = true;
+      shotStatus.textContent = 'Uploading...';
+      try {
+        const fd = new FormData();
+        fd.append('screenshot', file);
+        const res = await fetch(`/api/admin/matches/${encodeURIComponent(matchId)}/upload-score-screenshot`, {
+          method: 'POST',
+          headers: getAdminHeaders(),
+          body: fd
+        });
+        const j = await res.json();
+        if (!j.ok) {
+          shotStatus.textContent = 'Error: ' + (j.error || JSON.stringify(j));
+          shotStatus.className = 'meta error';
+          log('screenshot upload error', j);
+        } else {
+          shotStatus.textContent = 'Uploaded.';
+          shotStatus.className = 'meta success';
+          const publicPath = j.path || '';
+          previewArea.style.display = 'flex';
+          savedImage.src = publicPath;
+          savedImageLink.href = publicPath;
+          savedImagePath.textContent = publicPath;
+          ocrText.value = j.ocrText || '';
+          log('screenshot uploaded', j);
+        }
+      } catch (err) {
+        console.error(err);
+        shotStatus.textContent = 'Network error';
+        shotStatus.className = 'meta error';
+        log('screenshot upload failed', err.message || err);
+      } finally {
+        uploadShotBtn.disabled = false;
+        clearShotBtn.disabled = false;
+        autoConvertOcrBtn.disabled = false;
+      }
+    });
+
+    clearShotBtn.addEventListener('click', () => {
+      screenshotFile.value = '';
+      previewArea.style.display = 'none';
+      savedImage.src = '';
+      savedImagePath.textContent = '';
+      ocrText.value = '';
+      shotStatus.textContent = '';
+      log('cleared screenshot UI');
+    });
+
+    copyOcrBtn.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(ocrText.value || '');
+        copyOcrBtn.textContent = 'Copied';
+        setTimeout(()=> copyOcrBtn.textContent = 'Copy OCR text', 1200);
+        log('OCR copied to clipboard');
+      } catch (e) {
+        alert('Copy failed: ' + (e.message || e));
+      }
+    });
+
+    pasteToJsonBtn.addEventListener('click', () => {
+      rawJson.value = ocrText.value || rawJson.value;
+      log('OCR pasted to JSON editor (clean before processing)');
+    });
+
+    // Validate JSON readability
+    validateJsonBtn.addEventListener('click', () => {
+      try {
+        JSON.parse(rawJson.value || '{}');
+        jsonStatus.textContent = 'Valid JSON';
+        jsonStatus.className = 'meta success';
+        log('JSON validated');
+      } catch (e) {
+        jsonStatus.textContent = 'Invalid JSON: ' + e.message;
+        jsonStatus.className = 'meta error';
+        log('JSON validation failed', e.message);
+      }
+    });
+
+    // Process raw JSON via upload-scorecard endpoint
+    processJsonBtn.addEventListener('click', async () => {
+      const matchId = matchIdInput.value.trim();
+      if (!matchId) return alert('Enter matchId first');
+      const provider = document.getElementById('provider').value;
+      let parsed;
+      try {
+        parsed = JSON.parse(rawJson.value || '{}');
+      } catch (e) {
+        return alert('Invalid JSON — fix it or paste provider raw JSON');
+      }
+
+      processJsonBtn.disabled = true;
+      jsonStatus.textContent = 'Processing...';
+      try {
+        const res = await fetch(`/api/admin/matches/${encodeURIComponent(matchId)}/upload-scorecard`, {
+          method: 'POST',
+          headers: Object.assign({ 'Content-Type': 'application/json' }, getAdminHeaders()),
+          body: JSON.stringify({ provider, raw: parsed })
+        });
+        const j = await res.json();
+        if (!j.ok) {
+          jsonStatus.textContent = 'Error: ' + (j.error || JSON.stringify(j));
+          jsonStatus.className = 'meta error';
+          log('process scorecard error', j);
+          alert('Processing error: ' + (j.error || JSON.stringify(j)));
+        } else {
+          jsonStatus.textContent = 'Processed: ' + (j.message || 'OK');
+          jsonStatus.className = 'meta success';
+          log('scorecard processed', j);
+          alert('Scorecard processed successfully. Stats count: ' + (j.statsCount || 0));
+        }
+      } catch (err) {
+        console.error(err);
+        jsonStatus.textContent = 'Network error';
+        jsonStatus.className = 'meta error';
+        log('process scorecard network error', err.message || err);
+        alert('Network error: ' + (err.message || err));
+      } finally {
+        processJsonBtn.disabled = false;
+      }
+    });
+
+    // Pre-fill admin token from prompt once if empty (optional convenience)
+    (function maybePromptToken(){
+      if (!adminTokenInput.value.trim()) {
+        const t = prompt('Enter admin token (x-admin-token) — this will be stored in the page until refresh. Leave blank to use JWT via Authorization header.');
+        if (t !== null) adminTokenInput.value = t;
+      }
+    })();
+
+    // Drag & drop support for image
+    window.addEventListener('dragover', e => e.preventDefault());
+    window.addEventListener('drop', e => {
+      e.preventDefault();
+      const f = e.dataTransfer.files && e.dataTransfer.files[0];
+      if (f && f.type && f.type.startsWith('image/')) {
+        screenshotFile.files = e.dataTransfer.files;
+        log('Dropped image file selected');
+      }
+    });
+
+    // -----------------------------
+    // Naive OCR -> JSON converter
+    // -----------------------------
+    function autoConvertOcrToJson(ocr) {
+      if (!ocr || typeof ocr !== 'string') return { batting: [], bowling: [] };
+
+      // Normalize arrows/strange chars
+      const clean = ocr.replace(/\u00A0/g,' ').replace(/[>►•▲]/g,'').replace(/\r/g,'\n');
+      const rawLines = clean.split('\n').map(s => s.trim()).filter(Boolean);
+
+      // classify lines: number-ish or text-ish
+      const lines = rawLines.map(l => {
+        const numbers = l.match(/[-+]?\d+(\.\d+)?/g);
+        const hasAlpha = /[A-Za-z]/.test(l);
+        const isNumberLine = (!hasAlpha && numbers) || (numbers && l.replace(/[,.\s0-9]/g,'') === '');
+        return { raw: l, numbers: numbers || [], isNumberLine, hasAlpha };
+      });
+
+      // Build tokens array (merge adjacent text lines that look like one player)
+      const tokens = [];
+      let i = 0;
+      while (i < lines.length) {
+        if (lines[i].hasAlpha && !lines[i].isNumberLine) {
+          let block = lines[i].raw;
+          let j = i+1;
+          while (j < lines.length && lines[j].hasAlpha && !lines[j].isNumberLine) {
+            block += ' | ' + lines[j].raw;
+            j++;
+          }
+          tokens.push({ type: 'text', text: block });
+          i = j;
+        } else if (lines[i].isNumberLine) {
+          lines[i].numbers.forEach(num => tokens.push({ type: 'number', number: num }));
+          i++;
+        } else {
+          tokens.push({ type: lines[i].hasAlpha ? 'text' : 'other', text: lines[i].raw, numbers: lines[i].numbers });
+          i++;
+        }
+      }
+
+      // Now pair: for each text token, take the next number token as runs (if exists)
+      const batting = [];
+      for (let k = 0; k < tokens.length; k++) {
+        const tk = tokens[k];
+        if (tk.type === 'text') {
+          const pieces = tk.text.split('|').map(s=>s.trim()).filter(Boolean);
+          const namePiece = pieces[0] || '';
+          let dismissal = null;
+          for (let p = 1; p < pieces.length; p++) {
+            const txt = pieces[p].toLowerCase();
+            if (txt.includes('b ') || txt.includes('c ') || txt.includes('not out') || txt.includes('run out') || txt.includes('ibw') || txt.includes('lbw')) {
+              dismissal = pieces[p];
+              break;
+            }
+          }
+          const nameMatch = namePiece.replace(/\s{2,}/g,' ').trim();
+          let runs = null;
+          for (let t = k+1; t < tokens.length; t++) {
+            if (tokens[t].type === 'number') { runs = tokens[t].number; break; }
+            if (tokens[t].type === 'text') break;
+          }
+          batting.push({ playerName: nameMatch || null, dismissal: dismissal, runs: runs !== null ? Number(runs) : null });
+        }
+      }
+
+      return { batting, bowling: [] };
+    }
+
+    autoConvertOcrBtn.addEventListener('click', () => {
+      try {
+        const txt = (ocrText||{value:''}).value;
+        if (!txt.trim()) return alert('Paste OCR text into the OCR box first.');
+        const parsed = autoConvertOcrToJson(txt);
+        const out = { providerGuess: 'naive-ocr', parsedBatting: parsed.batting, parsedBowling: parsed.bowling };
+        rawJson.value = JSON.stringify(out, null, 2);
+        parsedPreview.textContent = JSON.stringify(out, null, 2);
+        log('OCR auto-converted to JSON (naive). Review before processing.');
+        alert('OCR converted to naive JSON and pasted into the JSON editor. Review before processing.');
+      } catch (e) {
+        console.error('Auto-convert failed', e);
+        alert('Auto-convert failed: ' + (e.message || e));
+      }
+    });
+
+  })();
+</script>
+</body>
+</html>
