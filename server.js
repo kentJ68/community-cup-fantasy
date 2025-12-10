@@ -1,4 +1,4 @@
-// server.js — full server integrated with OCR.space screenshot OCR (Option A)
+// server.js — full server with moment-timezone IST handling for match creation
 require("dotenv").config();
 const fs = require("fs");
 const path = require("path");
@@ -16,6 +16,7 @@ const { OAuth2Client } = require("google-auth-library");
 const cron = require("node-cron"); // npm i node-cron
 const axios = require("axios");    // npm i axios
 const FormData = require("form-data"); // npm i form-data
+const moment = require("moment-timezone"); // npm i moment-timezone
 
 // -------------------------
 // Environment variables
@@ -205,11 +206,41 @@ app.post("/api/me/avatar", auth, uploadAvatar.single("avatar"), async (req, res)
 
 // -------------------------
 // Matches (admin/public)
+// -------------------------
 app.post("/api/admin/matches", admin, async (req, res) => {
   try {
+    // Convert incoming startTime to IST (Asia/Kolkata) before saving
+    // Accepts many formats (ISO, "10 Dec 2025 7:30 PM", etc.) — moment.tz will handle best-effort parsing
     const { name, startTime, streamUrl, teamA, teamB, externalId } = req.body;
     if (!name) return res.status(400).json({ error: "Match name required" });
-    const match = await Match.create({ name, startTime: startTime ? new Date(startTime) : new Date(), streamUrl, teamA, teamB, externalId });
+
+    let startTimeToSave = null;
+    if (startTime) {
+      // parse the provided time string in Asia/Kolkata timezone
+      // If caller provided a timezone-aware ISO string, moment will respect it; else we treat string as IS T local time in Asia/Kolkata.
+      const m = moment.tz(startTime, "Asia/Kolkata");
+      if (!m.isValid()) {
+        // try fallback: treat as ISO and convert to IST
+        const m2 = moment(startTime);
+        if (m2.isValid()) {
+          startTimeToSave = m2.toDate();
+        } else {
+          return res.status(400).json({ error: "Invalid startTime format" });
+        }
+      } else {
+        startTimeToSave = m.toDate();
+      }
+    }
+
+    const match = await Match.create({
+      name,
+      startTime: startTimeToSave,
+      streamUrl,
+      teamA,
+      teamB,
+      externalId
+    });
+
     return res.json({ ok: true, match });
   } catch (err) {
     console.error("create match error:", err);
