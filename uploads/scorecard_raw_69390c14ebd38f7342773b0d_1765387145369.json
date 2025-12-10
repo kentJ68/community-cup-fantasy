@@ -1,0 +1,215 @@
+{
+  "provider": "example",
+  "raw": [
+    {
+      "playerName": "B. Stokes",
+      "runs": 0,
+      "fours": 0,
+      "sixes": 0,
+      "wickets": 0,
+      "maidens": 0,
+      "catches": 0,
+      "mvp": false
+    },
+    {
+      "playerName": "C. Green",
+      "runs": 0,
+      "fours": 0,
+      "sixes": 0,
+      "wickets": 0,
+      "maidens": 0,
+      "catches": 0,
+      "mvp": false
+    },
+    {
+      "playerName": "K. Jamieson",
+      "runs": 0,
+      "fours": 0,
+      "sixes": 0,
+      "wickets": 3,
+      "maidens": 0,
+      "catches": 0,
+      "mvp": false
+    },
+    {
+      "playerName": "M. Shami",
+      "runs": 0,
+      "fours": 0,
+      "sixes": 0,
+      "wickets": 0,
+      "maidens": 0,
+      "catches": 0,
+      "mvp": false
+    },
+    {
+      "playerName": "K. Yadav",
+      "runs": 0,
+      "fours": 0,
+      "sixes": 0,
+      "wickets": 2,
+      "maidens": 0,
+      "catches": 0,
+      "mvp": false
+    },
+    {
+      "playerName": "M. Henry",
+      "runs": 0,
+      "fours": 0,
+      "sixes": 0,
+      "wickets": 0,
+      "maidens": 0,
+      "catches": 0,
+      "mvp": false
+    },
+    {
+      "playerName": "Travis Head",
+      "runs": 31,
+      "fours": 0,
+      "sixes": 0,
+      "wickets": 0,
+      "maidens": 0,
+      "catches": 0,
+      "mvp": false
+    },
+    {
+      "playerName": "Abhishek Sharma",
+      "runs": 42,
+      "fours": 0,
+      "sixes": 0,
+      "wickets": 0,
+      "maidens": 0,
+      "catches": 0,
+      "mvp": false
+    },
+    {
+      "playerName": "Aiden Markram",
+      "runs": 14,
+      "fours": 0,
+      "sixes": 0,
+      "wickets": 0,
+      "maidens": 0,
+      "catches": 0,
+      "mvp": false
+    },
+    {
+      "playerName": "Harry Brook",
+      "runs": 31,
+      "fours": 0,
+      "sixes": 0,
+      "wickets": 0,
+      "maidens": 0,
+      "catches": 0,
+      "mvp": false
+    },
+    {
+      "playerName": "Babar Azam",
+      "runs": 26,
+      "fours": 0,
+      "sixes": 0,
+      "wickets": 0,
+      "maidens": 0,
+      "catches": 0,
+      "mvp": false
+    },
+    {
+      "playerName": "David Warner",
+      "runs": 16,
+      "fours": 0,
+      "sixes": 0,
+      "wickets": 0,
+      "maidens": 0,
+      "catches": 0,
+      "mvp": false
+    },
+    {
+      "playerName": "Steve Smith",
+      "runs": 15,
+      "fours": 0,
+      "sixes": 0,
+      "wickets": 0,
+      "maidens": 0,
+      "catches": 0,
+      "mvp": false
+    },
+    {
+      "playerName": "Shreyas Iyer",
+      "runs": 27,
+      "fours": 0,
+      "sixes": 0,
+      "wickets": 0,
+      "maidens": 0,
+      "catches": 0,
+      "mvp": false
+    },
+    {
+      "playerName": "Mohammad Rizwan",
+      "runs": 15,
+      "fours": 0,
+      "sixes": 0,
+      "wickets": 0,
+      "maidens": 0,
+      "catches": 0,
+      "mvp": false
+    },
+    {
+      "playerName": "Heinrich Klaasen",
+      "runs": 0,
+      "fours": 0,
+      "sixes": 0,
+      "wickets": 0,
+      "maidens": 0,
+      "catches": 0,
+      "mvp": false
+    },
+    {
+      "playerName": "Mohammad Nabi",
+      "runs": 14,
+      "fours": 0,
+      "sixes": 0,
+      "wickets": 1,
+      "maidens": 0,
+      "catches": 0,
+      "mvp": false
+    },
+    {
+      "playerName": "Sam Curran",
+      "runs": 0,
+      "fours": 0,
+      "sixes": 0,
+      "wickets": 0,
+      "maidens": 0,
+      "catches": 0,
+      "mvp": false
+    },
+    {
+      "playerName": "Tim Southee",
+      "runs": 0,
+      "fours": 0,
+      "sixes": 0,
+      "wickets": 1,
+      "maidens": 0,
+      "catches": 0,
+      "mvp": false
+    },
+    {
+      "playerName": "Nathan Lyon",
+      "runs": 0,
+      "fours": 0,
+      "sixes": 0,
+      "wickets": 0,
+      "maidens": 0,
+      "catches": 0,
+      "mvp": false
+    },
+    {
+      "playerName": "Mohammad Amir",
+      "runs": 0,
+      "fours": 0,
+      "sixes": 0,
+      "wickets": 0,
+      "maidens": 0,
+      "catches": 0,
+      "mvp": false
+    }
+  ]
+}

@@ -1,4 +1,4 @@
-// server.js — full server with moment-timezone IST handling for match creation
+// server.js
 require("dotenv").config();
 const fs = require("fs");
 const path = require("path");
@@ -11,34 +11,33 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const multer = require("multer");
 const { OAuth2Client } = require("google-auth-library");
-
-// extras
-const cron = require("node-cron"); // npm i node-cron
-const axios = require("axios");    // npm i axios
-const FormData = require("form-data"); // npm i form-data
-const moment = require("moment-timezone"); // npm i moment-timezone
+const cron = require("node-cron");
+const axios = require("axios");
+const FormData = require("form-data");
+const moment = require("moment-timezone");
 
 // -------------------------
-// Environment variables
+// Config / Env
 // -------------------------
 const PORT = process.env.PORT || 4000;
 const MONGO = process.env.MONGO_URI || process.env.MONGO || "";
-const JWT_SECRET = process.env.JWT_SECRET || "dev_secret";
+const JWT_SECRET = process.env.JWT_SECRET || "dev_jwt_secret";
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || "";
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "";
+const OCR_SPACE_API_KEY = process.env.OCR_SPACE_API_KEY || "";
 const SCORE_API_KEY = process.env.SCORE_API_KEY || "";
-const OCR_SPACE_API_KEY = process.env.OCR_SPACE_API_KEY || process.env.OCR_SPACE_KEY || "";
 
 // -------------------------
-// MongoDB connection
+// Connect Mongo
 // -------------------------
 mongoose
-  .connect(MONGO, { dbName: "community_cup" })
+  .connect(MONGO, { dbName: "community_cup", useNewUrlParser: true, useUnifiedTopology: true })
   .then(() => console.log("MongoDB connected"))
-  .catch((err) => console.error("Mongo Error:", err));
+  .catch((err) => console.error("Mongo connection error:", err && err.message));
 
 // -------------------------
-// Models (placeholders: ensure these exist)
+// Models (assume these files exist in ./models)
+// -------------------------
 const User = require("./models/User");
 const Match = require("./models/Match");
 const Team = require("./models/Team");
@@ -47,7 +46,7 @@ const TeamEntry = require("./models/TeamEntry");
 const LeagueTeam = require("./models/LeagueTeam");
 
 // -------------------------
-// Express + Server + Socket.IO
+// Express + HTTP + Socket.IO
 // -------------------------
 const app = express();
 const server = http.createServer(app);
@@ -57,20 +56,20 @@ global.io = io;
 
 io.on("connection", (socket) => {
   console.log("Socket connected:", socket.id);
-  socket.on("joinMatch", (matchId) => { if (matchId) socket.join(`match_${matchId}`); });
-  socket.on("leaveMatch", (matchId) => { if (matchId) socket.leave(`match_${matchId}`); });
+  socket.on("joinMatch", (id) => { if (id) socket.join(`match_${id}`); });
+  socket.on("leaveMatch", (id) => { if (id) socket.leave(`match_${id}`); });
 });
 
 // -------------------------
 // Middleware
 // -------------------------
 app.use(cors());
-app.use(express.json({ limit: "8mb" }));
+app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, "public")));
 
 // -------------------------
-// Upload directories & multer
+// Upload dirs and multer
 // -------------------------
 const UPLOAD_DIR = path.join(__dirname, "uploads");
 const AVATAR_DIR = path.join(__dirname, "public", "assets", "avatars");
@@ -78,28 +77,26 @@ const TEAM_LOGO_DIR = path.join(__dirname, "public", "assets", "team-logos");
 const LEAGUE_LOGO_DIR = path.join(__dirname, "public", "assets", "league-logos");
 const SCORESCREEN_DIR = path.join(UPLOAD_DIR, "score-screens");
 
-fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-fs.mkdirSync(AVATAR_DIR, { recursive: true });
-fs.mkdirSync(TEAM_LOGO_DIR, { recursive: true });
-fs.mkdirSync(LEAGUE_LOGO_DIR, { recursive: true });
-fs.mkdirSync(SCORESCREEN_DIR, { recursive: true });
+[UPLOAD_DIR, AVATAR_DIR, TEAM_LOGO_DIR, LEAGUE_LOGO_DIR, SCORESCREEN_DIR].forEach(d => {
+  try { fs.mkdirSync(d, { recursive: true }); } catch (e) {}
+});
 
-const uploadRoster = multer({ dest: path.join(UPLOAD_DIR, "roster") });
 const uploadAvatar = multer({ dest: AVATAR_DIR });
 const uploadTeamLogo = multer({ dest: TEAM_LOGO_DIR });
 const uploadLeagueLogo = multer({ dest: LEAGUE_LOGO_DIR });
 const uploadScoreScreenshot = multer({ dest: SCORESCREEN_DIR });
+const uploadAny = multer({ dest: UPLOAD_DIR });
 
 // -------------------------
-// Helpers: JWT, auth, admin
+// Helpers: JWT + auth
 // -------------------------
 function signJwt(payload) { return jwt.sign(payload, JWT_SECRET, { expiresIn: "7d" }); }
 function verifyJwt(token) { try { return jwt.verify(token, JWT_SECRET); } catch { return null; } }
 
 function auth(req, res, next) {
-  const auth = (req.headers.authorization || "").split(" ");
-  if (auth.length === 2 && auth[0] === "Bearer") {
-    const pl = verifyJwt(auth[1]);
+  const authHeader = (req.headers.authorization || "").split(" ");
+  if (authHeader.length === 2 && authHeader[0] === "Bearer") {
+    const pl = verifyJwt(authHeader[1]);
     if (pl) { req.user = pl; return next(); }
   }
   return res.status(401).json({ error: "Unauthorized" });
@@ -117,7 +114,8 @@ function admin(req, res, next) {
 }
 
 // -------------------------
-// Google auth (optional)
+// Google ID token endpoint
+// -------------------------
 const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID);
 app.post("/api/auth/google-idtoken", async (req, res) => {
   try {
@@ -128,18 +126,24 @@ app.post("/api/auth/google-idtoken", async (req, res) => {
     const googleId = payload.sub, email = payload.email, name = payload.name, picture = payload.picture;
     let user = await User.findOne({ googleId });
     if (!user && email) user = await User.findOne({ email });
-    if (user) { user.googleId = googleId; if (!user.avatarUrl) user.avatarUrl = picture; await user.save(); }
-    else { user = await User.create({ googleId, email, displayName: name, avatarUrl: picture }); }
+    if (user) {
+      user.googleId = googleId;
+      if (!user.avatarUrl) user.avatarUrl = picture;
+      await user.save();
+    } else {
+      user = await User.create({ googleId, email, displayName: name, avatarUrl: picture });
+    }
     const token = signJwt({ id: user._id, role: user.role });
     return res.json({ ok: true, token, user: { id: user._id, displayName: user.displayName, avatarUrl: user.avatarUrl } });
   } catch (err) {
-    console.error("google-idtoken error:", err);
+    console.error("google-idtoken error:", err && err.message);
     return res.status(400).json({ error: "Invalid id_token" });
   }
 });
 
 // -------------------------
 // Auth: register/login
+// -------------------------
 app.post("/api/auth/register", async (req, res) => {
   try {
     const { email, password, displayName } = req.body;
@@ -150,7 +154,7 @@ app.post("/api/auth/register", async (req, res) => {
     const token = signJwt({ id: user._id, role: user.role });
     return res.json({ ok: true, token, user: { id: user._id, displayName: user.displayName } });
   } catch (err) {
-    console.error("register error:", err);
+    console.error("register error:", err && err.message);
     return res.status(500).json({ error: "Register failed" });
   }
 });
@@ -165,13 +169,14 @@ app.post("/api/auth/login", async (req, res) => {
     const token = signJwt({ id: user._id, role: user.role });
     return res.json({ ok: true, token, user: { id: user._id, displayName: user.displayName } });
   } catch (err) {
-    console.error("login error:", err);
+    console.error("login error:", err && err.message);
     return res.status(500).json({ error: "Login failed" });
   }
 });
 
 // -------------------------
-// Profile / avatar
+// Profile
+// -------------------------
 app.get("/api/me", auth, async (req, res) => {
   try {
     const user = await User.findById(req.user.id).lean();
@@ -179,7 +184,7 @@ app.get("/api/me", auth, async (req, res) => {
     delete user.passwordHash;
     return res.json({ ok: true, user });
   } catch (err) {
-    console.error("me error:", err);
+    console.error("me error:", err && err.message);
     return res.status(500).json({ error: "Failed to fetch profile" });
   }
 });
@@ -199,67 +204,38 @@ app.post("/api/me/avatar", auth, uploadAvatar.single("avatar"), async (req, res)
     await user.save();
     return res.json({ ok: true, avatarUrl: user.avatarUrl });
   } catch (err) {
-    console.error("avatar upload error:", err);
+    console.error("avatar upload error:", err && err.message);
     return res.status(500).json({ error: "Avatar upload failed" });
   }
 });
 
 // -------------------------
-// Matches (admin/public)
+// Matches: create (IST timezone handling), list, get
 // -------------------------
 app.post("/api/admin/matches", admin, async (req, res) => {
   try {
-    // Convert incoming startTime to IST (Asia/Kolkata) before saving
-    // Accepts many formats (ISO, "10 Dec 2025 7:30 PM", etc.) — moment.tz will handle best-effort parsing
     const { name, startTime, streamUrl, teamA, teamB, externalId } = req.body;
     if (!name) return res.status(400).json({ error: "Match name required" });
 
     let startTimeToSave = null;
     if (startTime) {
-      // parse the provided time string in Asia/Kolkata timezone
-      // If caller provided a timezone-aware ISO string, moment will respect it; else we treat string as IS T local time in Asia/Kolkata.
+      // Try parse with Asia/Kolkata as default timezone (most admin input will be local IST)
       const m = moment.tz(startTime, "Asia/Kolkata");
-      if (!m.isValid()) {
-        // try fallback: treat as ISO and convert to IST
-        const m2 = moment(startTime);
-        if (m2.isValid()) {
-          startTimeToSave = m2.toDate();
-        } else {
-          return res.status(400).json({ error: "Invalid startTime format" });
-        }
-      } else {
+      if (m.isValid()) {
         startTimeToSave = m.toDate();
+      } else {
+        // fallback: try generic parse
+        const m2 = moment(startTime);
+        if (m2.isValid()) startTimeToSave = m2.toDate();
+        else return res.status(400).json({ error: "Invalid startTime format" });
       }
     }
 
-    const match = await Match.create({
-      name,
-      startTime: startTimeToSave,
-      streamUrl,
-      teamA,
-      teamB,
-      externalId
-    });
-
+    const match = await Match.create({ name, startTime: startTimeToSave, streamUrl, teamA, teamB, externalId });
     return res.json({ ok: true, match });
   } catch (err) {
-    console.error("create match error:", err);
+    console.error("create match error:", err && err.message);
     return res.status(500).json({ error: "Match creation failed" });
-  }
-});
-
-app.delete("/api/admin/matches/:matchId", admin, async (req, res) => {
-  try {
-    const { matchId } = req.params;
-    await Contest.deleteMany({ matchId });
-    await Team.deleteMany({ matchId });
-    await TeamEntry.deleteMany({ matchId });
-    await Match.deleteOne({ _id: matchId });
-    io.emit("matchDeleted", { matchId });
-    return res.json({ ok: true });
-  } catch (err) {
-    console.error("delete match error:", err);
-    return res.status(500).json({ error: "Delete failed" });
   }
 });
 
@@ -268,7 +244,7 @@ app.get("/api/matches", async (req, res) => {
     const matches = await Match.find().sort({ startTime: -1 }).lean();
     return res.json(matches);
   } catch (err) {
-    console.error("matches list error:", err);
+    console.error("matches list error:", err && err.message);
     return res.status(500).json({ error: "Failed to list matches" });
   }
 });
@@ -279,13 +255,13 @@ app.get("/api/matches/:matchId", async (req, res) => {
     if (!match) return res.status(404).json({ error: "Match not found" });
     return res.json(match);
   } catch (err) {
-    console.error("get match error:", err);
+    console.error("get match error:", err && err.message);
     return res.status(500).json({ error: "Failed to fetch match" });
   }
 });
 
 // -------------------------
-// Roster upload (CSV + JSON)
+// Roster upload (CSV / JSON)
 function parseCSV(text) {
   text = text.replace(/^\uFEFF/, "").replace(/\r\n/g, "\n").trim();
   if (!text) return { header: [], rows: [] };
@@ -295,7 +271,7 @@ function parseCSV(text) {
   return { header, rows };
 }
 
-app.post("/api/admin/matches/:matchId/roster-csv", admin, uploadRoster.single("rosterCsv"), async (req, res) => {
+app.post("/api/admin/matches/:matchId/roster-csv", admin, uploadAny.single("rosterCsv"), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: "No file" });
     const csv = fs.readFileSync(req.file.path, "utf8");
@@ -316,7 +292,7 @@ app.post("/api/admin/matches/:matchId/roster-csv", admin, uploadRoster.single("r
     io.to(`match_${match._id}`).emit("rosterUpdate", { matchId: match._id, players });
     return res.json({ ok: true, count: players.length });
   } catch (err) {
-    console.error("roster-csv error:", err);
+    console.error("roster-csv error:", err && err.message);
     return res.status(500).json({ error: "Roster upload failed" });
   }
 });
@@ -329,7 +305,7 @@ app.post("/api/admin/matches/:matchId/roster", admin, async (req, res) => {
     io.to(`match_${match._id}`).emit("rosterUpdate", { matchId: match._id, players: match.players });
     return res.json({ ok: true });
   } catch (err) {
-    console.error("roster save error:", err);
+    console.error("roster save error:", err && err.message);
     return res.status(500).json({ error: "Roster save failed" });
   }
 });
@@ -338,15 +314,16 @@ app.get("/api/matches/:matchId/players", async (req, res) => {
   try {
     const match = await Match.findById(req.params.matchId).lean();
     if (!match) return res.status(404).json({ error: "No match" });
-    return res.json({ ok: true, players: match.players });
+    return res.json({ ok: true, players: match.players || [] });
   } catch (err) {
-    console.error("get players error:", err);
+    console.error("get players error:", err && err.message);
     return res.status(500).json({ error: "Failed to fetch players" });
   }
 });
 
 // -------------------------
-// Contests
+// Contests (create/list/join) and join validation
+// -------------------------
 app.post("/api/admin/matches/:matchId/contests", admin, async (req, res) => {
   try {
     const { title, entryFee, maxEntries, perViewerLimit, closeTime } = req.body;
@@ -354,21 +331,8 @@ app.post("/api/admin/matches/:matchId/contests", admin, async (req, res) => {
     const contest = await Contest.create({ matchId: req.params.matchId, title, entryFee, maxEntries, perViewerLimit, closeTime: closeTime ? new Date(closeTime) : null, archived: false, closed: false });
     return res.json({ ok: true, contest });
   } catch (err) {
-    console.error("create contest error:", err);
+    console.error("create contest error:", err && err.message);
     return res.status(500).json({ error: "Contest creation failed" });
-  }
-});
-
-app.delete("/api/admin/contests/:contestId", admin, async (req, res) => {
-  try {
-    const { contestId } = req.params;
-    await TeamEntry.deleteMany({ contestId });
-    await Contest.deleteOne({ _id: contestId });
-    io.emit("contestDeleted", { contestId });
-    return res.json({ ok: true });
-  } catch (err) {
-    console.error("delete contest error:", err);
-    return res.status(500).json({ error: "Delete failed" });
   }
 });
 
@@ -378,9 +342,9 @@ app.get("/api/matches/:matchId/contests", async (req, res) => {
     const contests = await Contest.find({ matchId, archived: { $ne: true } }).lean();
     if (!contests || contests.length === 0) return res.json([]);
     let viewerName = null;
-    const auth = (req.headers.authorization || "").split(" ");
-    if (auth.length === 2 && auth[0] === "Bearer") {
-      const pl = verifyJwt(auth[1]);
+    const authHeader = (req.headers.authorization || "").split(" ");
+    if (authHeader.length === 2 && authHeader[0] === "Bearer") {
+      const pl = verifyJwt(authHeader[1]);
       if (pl && pl.id) {
         try {
           const user = await User.findById(pl.id).lean();
@@ -396,96 +360,11 @@ app.get("/api/matches/:matchId/contests", async (req, res) => {
     }));
     return res.json(contestsWithCounts);
   } catch (err) {
-    console.error("get contests error:", err);
+    console.error("get contests error:", err && err.message);
     return res.status(500).json({ error: "Failed to load contests" });
   }
 });
 
-// -------------------------
-// Team creation & lookup
-app.post("/api/matches/:matchId/teams", async (req, res) => {
-  try {
-    const { matchId } = req.params;
-    const { players, captain, vice, name, viewerName, linkedChannel } = req.body;
-    if (!Array.isArray(players) || players.length !== 11) return res.status(400).json({ error: "Team must have 11 players" });
-    const team = await Team.create({ matchId, players, captain, vice, name, viewerName, linkedChannel });
-    return res.json({ ok: true, team });
-  } catch (err) {
-    console.error("create team error:", err);
-    return res.status(500).json({ error: "Team creation failed" });
-  }
-});
-
-app.get("/api/matches/:matchId/team/:viewerName", async (req, res) => {
-  try {
-    const { matchId, viewerName } = req.params;
-    if (!viewerName) return res.status(400).json({ ok: false, error: "viewerName required" });
-    const team = await Team.findOne({ matchId, viewerName }).lean();
-    if (!team) return res.json({ ok: false, team: null });
-    return res.json({ ok: true, team });
-  } catch (err) {
-    console.error("get team error:", err);
-    return res.status(500).json({ ok: false, error: "Failed to fetch team" });
-  }
-});
-
-// -------------------------
-// Team & League Logo uploads
-app.post("/api/matches/:matchId/teams/:teamId/logo", auth, uploadTeamLogo.single("logo"), async (req, res) => {
-  try {
-    const { matchId, teamId } = req.params;
-    const team = await Team.findById(teamId);
-    if (!team) return res.status(404).json({ error: "Team not found" });
-    if (String(team.matchId) !== String(matchId)) return res.status(400).json({ error: "Team does not belong to this match" });
-
-    const userPl = req.user;
-    const isAdmin = userPl && userPl.role === "admin";
-    if (!isAdmin) {
-      const user = await User.findById(userPl.id).lean();
-      if (!user || !user.displayName || user.displayName !== team.viewerName) return res.status(403).json({ error: "Not allowed" });
-    }
-
-    if (!req.file) return res.status(400).json({ error: "No file uploaded" });
-    const allowed = ["image/png","image/jpeg","image/webp"];
-    if (!allowed.includes(req.file.mimetype)) { fs.unlinkSync(req.file.path); return res.status(400).json({ error: "Invalid file type" }); }
-
-    const ext = path.extname(req.file.originalname).toLowerCase() || ".png";
-    const fileName = `team_${teamId}_${Date.now()}${ext}`;
-    const destPath = path.join(TEAM_LOGO_DIR, fileName);
-    fs.renameSync(req.file.path, destPath);
-    const publicUrl = `/assets/team-logos/${fileName}`;
-    team.logoUrl = publicUrl;
-    await team.save();
-    return res.json({ ok: true, logoUrl: publicUrl });
-  } catch (err) {
-    console.error("team logo upload error:", err);
-    return res.status(500).json({ error: "Upload failed" });
-  }
-});
-
-app.post("/api/admin/league/:leagueTeamId/logo", admin, uploadLeagueLogo.single("logo"), async (req, res) => {
-  try {
-    const { leagueTeamId } = req.params;
-    const team = await LeagueTeam.findById(leagueTeamId);
-    if (!team) return res.status(404).json({ error: "League team not found" });
-    if (!req.file) return res.status(400).json({ error: "No file uploaded" });
-    const allowed = ["image/png","image/jpeg","image/webp"];
-    if (!allowed.includes(req.file.mimetype)) { fs.unlinkSync(req.file.path); return res.status(400).json({ error: "Invalid file type" }); }
-    const ext = path.extname(req.file.originalname).toLowerCase() || ".png";
-    const fileName = `league_${leagueTeamId}_${Date.now()}${ext}`;
-    const destPath = path.join(LEAGUE_LOGO_DIR, fileName);
-    fs.renameSync(req.file.path, destPath);
-    team.logoUrl = `/assets/league-logos/${fileName}`;
-    await team.save();
-    return res.json({ ok: true, logoUrl: team.logoUrl });
-  } catch (err) {
-    console.error("league logo upload error:", err);
-    return res.status(500).json({ error: "Upload failed" });
-  }
-});
-
-// -------------------------
-// Contest join (strict)
 app.post("/api/contests/:contestId/join", async (req, res) => {
   try {
     const { contestId } = req.params;
@@ -516,19 +395,102 @@ app.post("/api/contests/:contestId/join", async (req, res) => {
     if (duplicate) return res.status(400).json({ error: "This team is already joined in the contest" });
 
     const entry = await TeamEntry.create({ matchId: contest.matchId, contestId: contest._id, viewerName, players: team.players, captain: team.captain, vice: team.vice, teamId: team._id, ip: req.ip, createdAt: new Date() });
-    console.log(`Contest join: viewer=${viewerName} contest=${contest._id} team=${team._id}`);
     io.to(`match_${String(contest.matchId)}`).emit("contestEntryUpdate", { contestId: String(contest._id), entryId: String(entry._id) });
     return res.json({ ok: true, entry });
   } catch (err) {
-    console.error("Join failed:", err);
+    console.error("Join failed:", err && err.message);
     return res.status(500).json({ error: "Join failed" });
   }
 });
 
 // -------------------------
-// Scoring: computePoints
-function computePoints(stat, isCaptain, isVice) {
-  if (!stat) return 0;
+// Team creation & lookup
+// -------------------------
+app.post("/api/matches/:matchId/teams", async (req, res) => {
+  try {
+    const { matchId } = req.params;
+    const { players, captain, vice, name, viewerName, linkedChannel } = req.body;
+    if (!Array.isArray(players) || players.length !== 11) return res.status(400).json({ error: "Team must have 11 players" });
+    const team = await Team.create({ matchId, players, captain, vice, name, viewerName, linkedChannel });
+    return res.json({ ok: true, team });
+  } catch (err) {
+    console.error("create team error:", err && err.message);
+    return res.status(500).json({ error: "Team creation failed" });
+  }
+});
+
+app.get("/api/matches/:matchId/team/:viewerName", async (req, res) => {
+  try {
+    const { matchId, viewerName } = req.params;
+    if (!viewerName) return res.status(400).json({ ok: false, error: "viewerName required" });
+    const team = await Team.findOne({ matchId, viewerName }).lean();
+    if (!team) return res.json({ ok: false, team: null });
+    return res.json({ ok: true, team });
+  } catch (err) {
+    console.error("get team error:", err && err.message);
+    return res.status(500).json({ ok: false, error: "Failed to fetch team" });
+  }
+});
+
+// -------------------------
+// League / Team logo uploads
+// -------------------------
+app.post("/api/matches/:matchId/teams/:teamId/logo", auth, uploadTeamLogo.single("logo"), async (req, res) => {
+  try {
+    const { matchId, teamId } = req.params;
+    const team = await Team.findById(teamId);
+    if (!team) return res.status(404).json({ error: "Team not found" });
+    if (String(team.matchId) !== String(matchId)) return res.status(400).json({ error: "Team does not belong to this match" });
+
+    const userPl = req.user;
+    const isAdmin = userPl && userPl.role === "admin";
+    if (!isAdmin) {
+      const user = await User.findById(userPl.id).lean();
+      if (!user || !user.displayName || user.displayName !== team.viewerName) return res.status(403).json({ error: "Not allowed" });
+    }
+
+    if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+    const allowed = ["image/png","image/jpeg","image/webp"];
+    if (!allowed.includes(req.file.mimetype)) { fs.unlinkSync(req.file.path); return res.status(400).json({ error: "Invalid file type" }); }
+
+    const ext = path.extname(req.file.originalname).toLowerCase() || ".png";
+    const fileName = `team_${teamId}_${Date.now()}${ext}`;
+    const destPath = path.join(TEAM_LOGO_DIR, fileName);
+    fs.renameSync(req.file.path, destPath);
+    team.logoUrl = `/assets/team-logos/${fileName}`;
+    await team.save();
+    return res.json({ ok: true, logoUrl: team.logoUrl });
+  } catch (err) {
+    console.error("team logo upload error:", err && err.message);
+    return res.status(500).json({ error: "Upload failed" });
+  }
+});
+
+app.post("/api/admin/league/:leagueTeamId/logo", admin, uploadLeagueLogo.single("logo"), async (req, res) => {
+  try {
+    const { leagueTeamId } = req.params;
+    const team = await LeagueTeam.findById(leagueTeamId);
+    if (!team) return res.status(404).json({ error: "League team not found" });
+    if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+    const allowed = ["image/png","image/jpeg","image/webp"];
+    if (!allowed.includes(req.file.mimetype)) { fs.unlinkSync(req.file.path); return res.status(400).json({ error: "Invalid file type" }); }
+    const ext = path.extname(req.file.originalname).toLowerCase() || ".png";
+    const fileName = `league_${leagueTeamId}_${Date.now()}${ext}`;
+    const destPath = path.join(LEAGUE_LOGO_DIR, fileName);
+    fs.renameSync(req.file.path, destPath);
+    team.logoUrl = `/assets/league-logos/${fileName}`;
+    await team.save();
+    return res.json({ ok: true, logoUrl: team.logoUrl });
+  } catch (err) {
+    console.error("league logo upload error:", err && err.message);
+    return res.status(500).json({ error: "Upload failed" });
+  }
+});
+
+// -------------------------
+// Scoring logic + helpers
+// -------------------------
+function computePoints(stat = {}, isCaptain = false, isVice = false) {
   let pts = 0;
   pts += (stat.runs || 0) * 1;
   pts += (stat.fours || 0) * 1;
@@ -543,22 +505,24 @@ function computePoints(stat, isCaptain, isVice) {
   return Math.round(pts);
 }
 
-// Admin manual stats update
+// Admin manual stats update endpoint
 app.post("/api/admin/matches/:matchId/stats", admin, async (req, res) => {
   try {
     const { matchId } = req.params;
     const { stats } = req.body;
+    if (!Array.isArray(stats)) return res.status(400).json({ error: "stats must be array" });
     const match = await Match.findById(matchId);
     if (!match) return res.status(404).json({ error: "No match" });
     match.stats = stats;
     await match.save();
 
+    // recompute teams
     const statMap = {};
-    (stats || []).forEach(s => { statMap[s.playerName.toUpperCase()] = s; });
+    stats.forEach(s => { if (s.playerName) statMap[s.playerName.toUpperCase()] = s; });
     const teams = await Team.find({ matchId });
     for (const t of teams) {
       let total = 0;
-      (t.players || []).forEach(p => { total += computePoints(statMap[p.toUpperCase()], p === t.captain, p === t.vice); });
+      (t.players || []).forEach(p => { total += computePoints(statMap[(p||"").toUpperCase()] || {}, p === t.captain, p === t.vice); });
       await Team.findByIdAndUpdate(t._id, { totalPoints: total });
     }
 
@@ -566,60 +530,34 @@ app.post("/api/admin/matches/:matchId/stats", admin, async (req, res) => {
     io.to(`match_${matchId}`).emit("leaderboardUpdate", { matchId });
     return res.json({ ok: true });
   } catch (err) {
-    console.error("admin stats error:", err);
+    console.error("admin stats error:", err && err.message);
     return res.status(500).json({ error: "Failed to update stats" });
   }
 });
 
-// Leaderboard
+// Leaderboard endpoint
 app.get("/api/matches/:matchId/leaderboard", async (req, res) => {
   try {
     const match = await Match.findById(req.params.matchId).lean();
     if (!match) return res.status(404).json({ error: "No match" });
     const teams = await Team.find({ matchId: match._id, banned: { $ne: true } }).lean();
     const statMap = {};
-    (match.stats || []).forEach(s => { statMap[s.playerName.toUpperCase()] = s; });
+    (match.stats || []).forEach(s => { if (s.playerName) statMap[s.playerName.toUpperCase()] = s; });
     const board = teams.map(t => {
       let total = 0;
-      (t.players || []).forEach(p => { total += computePoints(statMap[p.toUpperCase()], p === t.captain, p === t.vice); });
+      (t.players || []).forEach(p => { total += computePoints(statMap[(p||"").toUpperCase()] || {}, p === t.captain, p === t.vice); });
       return { teamId: t._id, name: t.name, viewerName: t.viewerName, total };
     }).sort((a,b) => b.total - a.total);
     return res.json({ ok: true, leaderboard: board });
   } catch (err) {
-    console.error("leaderboard error:", err);
+    console.error("leaderboard error:", err && err.message);
     return res.status(500).json({ error: "Failed to get leaderboard" });
   }
 });
 
-// Export teams CSV
-app.get("/api/admin/matches/:matchId/export-teams", admin, async (req, res) => {
-  try {
-    const teams = await Team.find({ matchId: req.params.matchId }).lean();
-    const lines = ["name,players,captain,vice,totalPoints"];
-    teams.forEach(t => { lines.push(`"${t.name}","${(t.players||[]).join("|")}","${t.captain}","${t.vice}",${t.totalPoints||0}`); });
-    const csv = lines.join("\n");
-    res.header("Content-Type", "text/csv");
-    res.attachment(`match-${req.params.matchId}-teams.csv`);
-    return res.send(csv);
-  } catch (err) {
-    console.error("export teams error:", err);
-    return res.status(500).json({ error: "Export failed" });
-  }
-});
-
-// League teams
-app.get("/api/league/teams", async (req, res) => {
-  try {
-    const teams = await LeagueTeam.find().lean();
-    return res.json({ ok: true, teams });
-  } catch (err) {
-    console.error("league teams error:", err);
-    return res.status(500).json({ ok: false, error: "Failed to load league teams" });
-  }
-});
-
 // -------------------------
-// Scorecard provider adapter (example) & processing pipeline
+// Provider fetch + normalization (example)
+// -------------------------
 async function fetchRawScorecardFromProvider(match, provider = "example") {
   try {
     if (provider === "example") {
@@ -629,7 +567,7 @@ async function fetchRawScorecardFromProvider(match, provider = "example") {
       const res = await axios.get(url, { timeout: 15000 });
       return res.data;
     }
-    throw new Error("Unknown provider");
+    throw new Error("Unknown provider: " + provider);
   } catch (err) {
     console.error("fetchRawScorecardFromProvider error:", err && err.message);
     throw err;
@@ -637,9 +575,10 @@ async function fetchRawScorecardFromProvider(match, provider = "example") {
 }
 
 function normalizeScorecard(provider, raw) {
+  // Example normalizer for "example" provider
   if (provider === "example") {
     const map = new Map();
-    if (Array.isArray(raw.innings)) {
+    if (raw && Array.isArray(raw.innings)) {
       raw.innings.forEach(inn => {
         if (Array.isArray(inn.batting)) {
           inn.batting.forEach(b => {
@@ -673,7 +612,8 @@ function normalizeScorecard(provider, raw) {
         }
       });
     }
-    const mvpCandidate = raw.mvpPlayer || (raw.topPerformers && raw.topPerformers.manOfTheMatch) || null;
+    // pick mvp if present
+    const mvpCandidate = raw && (raw.mvpPlayer || (raw.topPerformers && raw.topPerformers.manOfTheMatch));
     if (mvpCandidate && map.has(mvpCandidate)) map.get(mvpCandidate).mvp = true;
     else if (mvpCandidate) map.set(mvpCandidate, { playerName: mvpCandidate, runs: 0, fours: 0, sixes: 0, wickets: 0, maidens: 0, catches: 0, mvp: true });
     return Array.from(map.values());
@@ -681,6 +621,7 @@ function normalizeScorecard(provider, raw) {
   throw new Error("Unknown provider normalization: " + provider);
 }
 
+// Process a match: fetch provider, normalize, save stats, recompute team points
 async function processMatchScorecard(matchId, options = { provider: "example" }) {
   const match = await Match.findById(matchId);
   if (!match) throw new Error("Match not found: " + matchId);
@@ -688,26 +629,26 @@ async function processMatchScorecard(matchId, options = { provider: "example" })
   const stats = normalizeScorecard(options.provider, raw);
   match.stats = stats;
   await match.save();
-  const teams = await Team.find({ matchId: match._id });
+
   const statMap = {};
-  stats.forEach(s => { statMap[s.playerName.toUpperCase()] = s; });
+  stats.forEach(s => { if (s.playerName) statMap[s.playerName.toUpperCase()] = s; });
+
+  const teams = await Team.find({ matchId: match._id });
   for (const t of teams) {
     let total = 0;
-    (t.players || []).forEach(pName => {
-      const st = statMap[(pName || "").toUpperCase()] || {};
-      const isCaptain = pName === t.captain;
-      const isVice = pName === t.vice;
-      total += computePoints(st, isCaptain, isVice);
+    (t.players || []).forEach(p => {
+      const st = statMap[(p||"").toUpperCase()] || {};
+      total += computePoints(st, p === t.captain, p === t.vice);
     });
     t.totalPoints = total;
     await t.save();
   }
+
   io.to(`match_${String(match._id)}`).emit("matchStatsUpdate", { matchId: String(match._id), stats });
   io.to(`match_${String(match._id)}`).emit("leaderboardUpdate", { matchId: String(match._id) });
   return { ok: true, teamsUpdated: teams.length, statsCount: stats.length };
 }
 
-// Admin trigger to fetch+process scorecard from provider
 app.post("/api/admin/matches/:matchId/fetch-scorecard", admin, async (req, res) => {
   try {
     const { matchId } = req.params;
@@ -715,44 +656,116 @@ app.post("/api/admin/matches/:matchId/fetch-scorecard", admin, async (req, res) 
     const result = await processMatchScorecard(matchId, { provider });
     return res.json({ ok: true, result });
   } catch (err) {
-    console.error("fetch-scorecard admin error:", err);
+    console.error("fetch-scorecard admin error:", err && err.message);
     return res.status(500).json({ ok: false, error: err.message || "Failed" });
   }
 });
 
 // -------------------------
-// Admin endpoint: upload raw scorecard JSON
-app.post("/api/admin/matches/:matchId/upload-scorecard", admin, async (req, res) => {
+// PATCHED: upload-scorecard (defensive) - accepts many shapes
+// -------------------------
+app.post("/api/admin/matches/:matchId/upload-scorecard", admin, express.json({ limit: "10mb" }), async (req, res) => {
   try {
     const { matchId } = req.params;
-    const { provider = "example", raw } = req.body;
-    if (!raw) return res.status(400).json({ error: "Missing raw scorecard JSON in body (raw)" });
+    const provider = req.body.provider || "example";
 
-    const fileName = `scorecard_raw_${matchId}_${Date.now()}.json`;
-    const fp = path.join(UPLOAD_DIR, fileName);
-    fs.writeFileSync(fp, JSON.stringify({ provider, raw }, null, 2));
-
-    let stats;
-    try { stats = normalizeScorecard(provider, raw); } catch (e) {
-      return res.json({ ok: true, message: "Saved raw JSON; normalization failed", path: `/uploads/${fileName}`, error: e.message });
+    // Accept raw as stringified JSON or object
+    let raw = req.body.raw;
+    if (!raw && Object.keys(req.body).length > 0) {
+      // maybe client posted raw directly
+      raw = req.body;
     }
 
+    // Write raw payload to disk for inspection
+    const fileName = `scorecard_raw_${matchId}_${Date.now()}.json`;
+    const fp = path.join(UPLOAD_DIR, fileName);
+    try { fs.writeFileSync(fp, JSON.stringify({ provider, raw }, null, 2)); } catch (e) { console.warn("failed to write raw", e && e.message); }
+
+    // Try normalizing using provider adapter
+    let stats = [];
+    let normErr = null;
+    try {
+      if (typeof normalizeScorecard === "function") {
+        stats = normalizeScorecard(provider, raw) || [];
+        if (!Array.isArray(stats)) stats = [];
+      }
+    } catch (e) {
+      normErr = (e && e.message) || String(e);
+      console.warn("normalizeScorecard error:", normErr);
+      stats = [];
+    }
+
+    // Fallback: raw.parsedBatting (OCR helper output)
+    if ((!stats || stats.length === 0) && raw && raw.parsedBatting && Array.isArray(raw.parsedBatting)) {
+      stats = raw.parsedBatting.map(p => ({
+        playerName: p.playerName || p.player || "",
+        runs: Number(p.runs || p.r || 0),
+        fours: Number(p.fours || 0),
+        sixes: Number(p.sixes || 0),
+        wickets: Number(p.wickets || 0),
+        maidens: Number(p.maidens || 0),
+        catches: Number(p.catches || 0),
+        mvp: !!p.mvp
+      }));
+    }
+
+    // Fallback: raw.stats
+    if ((!stats || stats.length === 0) && raw && Array.isArray(raw.stats)) {
+      stats = raw.stats.map(p => ({
+        playerName: p.playerName || p.name || "",
+        runs: Number(p.runs || 0),
+        fours: Number(p.fours || 0),
+        sixes: Number(p.sixes || 0),
+        wickets: Number(p.wickets || 0),
+        maidens: Number(p.maidens || 0),
+        catches: Number(p.catches || 0),
+        mvp: !!p.mvp
+      }));
+    }
+
+    // Fallback: if raw itself is an array of objects
+    if ((!stats || stats.length === 0) && Array.isArray(raw)) {
+      stats = raw.map(p => ({
+        playerName: p.playerName || p.name || "",
+        runs: Number(p.runs || 0),
+        fours: Number(p.fours || 0),
+        sixes: Number(p.sixes || 0),
+        wickets: Number(p.wickets || 0),
+        maidens: Number(p.maidens || 0),
+        catches: Number(p.catches || 0),
+        mvp: !!p.mvp
+      }));
+    }
+
+    if (!stats || stats.length === 0) {
+      return res.json({
+        ok: true,
+        message: "Saved raw JSON but normalization returned 0 stats.",
+        path: `/uploads/${fileName}`,
+        normalizationError: normErr,
+        statsCount: 0,
+        note: "Try sending final stats array or raw.parsedBatting (OCR helper)."
+      });
+    }
+
+    // Save stats to match
     const match = await Match.findById(matchId);
     if (!match) return res.status(404).json({ error: "Match not found" });
-
     match.stats = stats;
     await match.save();
 
+    // Recompute all teams' totals
     const statMap = {};
-    stats.forEach(s => statMap[s.playerName.toUpperCase()] = s);
+    stats.forEach(s => { if (s.playerName) statMap[s.playerName.toUpperCase()] = s; });
     const teams = await Team.find({ matchId: match._id });
     for (const t of teams) {
       let total = 0;
       (t.players || []).forEach(pName => {
-        const st = statMap[(pName || "").toUpperCase()] || {};
+        const st = statMap[(pName||"").toUpperCase()] || {};
         total += computePoints(st, pName === t.captain, pName === t.vice);
       });
-      await Team.findByIdAndUpdate(t._id, { totalPoints: total });
+      t.totalPoints = total;
+      await t.save();
     }
 
     io.to(`match_${String(match._id)}`).emit("matchStatsUpdate", { matchId: String(match._id), stats });
@@ -760,13 +773,14 @@ app.post("/api/admin/matches/:matchId/upload-scorecard", admin, async (req, res)
 
     return res.json({ ok: true, message: "Scorecard processed", statsCount: stats.length });
   } catch (err) {
-    console.error("upload-scorecard error:", err);
-    return res.status(500).json({ error: "Failed to upload/process scorecard" });
+    console.error("upload-scorecard error:", err && err.message);
+    return res.status(500).json({ error: "Failed to upload/process scorecard", details: err && err.message });
   }
 });
 
 // -------------------------
-// Admin endpoint: upload scorecard screenshot (OCR.space)
+// Upload screenshot & OCR.space integration
+// -------------------------
 app.post("/api/admin/matches/:matchId/upload-score-screenshot", admin, uploadScoreScreenshot.single("screenshot"), async (req, res) => {
   try {
     const { matchId } = req.params;
@@ -812,18 +826,19 @@ app.post("/api/admin/matches/:matchId/upload-score-screenshot", admin, uploadSco
     }
 
     const meta = { matchId, file: fileName, uploadedAt: new Date(), ocrText };
-    fs.writeFileSync(path.join(SCORESCREEN_DIR, `${fileName}.meta.json`), JSON.stringify(meta, null, 2));
+    try { fs.writeFileSync(path.join(SCORESCREEN_DIR, `${fileName}.meta.json`), JSON.stringify(meta, null, 2)); } catch (e) {}
 
     return res.json({ ok: true, path: `/uploads/score-screens/${fileName}`, ocrText });
   } catch (err) {
-    console.error("upload-score-screenshot (OCR.space) error:", err);
+    console.error("upload-score-screenshot (OCR.space) error:", err && err.message);
     try { if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path); } catch (e) {}
     return res.status(500).json({ error: "Failed to upload screenshot" });
   }
 });
 
 // -------------------------
-// Auto-close cron (every minute)
+// Auto-close cron for contests (every minute)
+// -------------------------
 cron.schedule("* * * * *", async () => {
   try {
     const now = new Date();
@@ -840,16 +855,18 @@ cron.schedule("* * * * *", async () => {
       }
     }
   } catch (err) {
-    console.error("Auto-close cron error:", err);
+    console.error("Auto-close cron error:", err && err.message);
   }
 });
 
 // -------------------------
-// Health
+// Simple health
+// -------------------------
 app.get("/api/health", (req, res) => res.json({ ok: true, time: new Date() }));
 
 // -------------------------
 // Start server
+// -------------------------
 server.listen(PORT, () => {
-  console.log(`🚀 SERVER READY at http://localhost:${PORT}`);
+  console.log(`🚀 Server listening on http://localhost:${PORT} (PORT=${PORT})`);
 });
