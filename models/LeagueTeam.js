@@ -1,28 +1,19 @@
-const mongoose = require("mongoose");
+// models/LeagueTeam.js
+const mongoose = require('mongoose');
 
-const LeagueTeamSchema = new mongoose.Schema({
-  name: { type: String, required: true, unique: true },
-  shortName: { type: String },
-  logo: { type: String }, // optional custom logo path
+const leaguePlayerSchema = new mongoose.Schema({
+  playerId: { type: String, default: "" },
+  playerName: { type: String, required: true },
+  role: { type: String, default: "BAT" }
+}, { _id: false });
 
-  players: [
-    {
-      playerName: String,
-      role: String,
-      nationality: String,
-      rating: Number,
-    }
-  ],
-
-  // meta
-  wins: { type: Number, default: 0 },
-  losses: { type: Number, default: 0 },
-  ties: { type: Number, default: 0 },
-
-  // total season fantasy points (computed)
+const leagueTeamSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  shortName: { type: String, default: "" },
+  logoUrl: { type: String, default: null },
+  players: { type: [leaguePlayerSchema], default: [] },
   seasonPoints: { type: Number, default: 0 },
-
   createdAt: { type: Date, default: Date.now }
-});
+}, { versionKey: false });
 
-module.exports = mongoose.model("LeagueTeam", LeagueTeamSchema);
+module.exports = mongoose.models.LeagueTeam || mongoose.model('LeagueTeam', leagueTeamSchema);
