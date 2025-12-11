@@ -12,18 +12,20 @@
     .team-meta { color:var(--muted); font-size:0.9rem; }
     .btn-small { padding:6px 8px; font-size:13px; border-radius:6px; cursor:pointer; }
     .btn-danger { background:#c43; color:#fff; border:none; }
-    .btn-ghost { background:transparent; border:1px solid rgba(255,255,255,0.06); color:inherit; }
+    .btn-ghost { background:transparent; border:1px solid rgba(255,255,255,0.06); color:inherit; padding:6px 8px; border-radius:6px; cursor:pointer; }
     .modal { position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,0.6); z-index:2000; }
     .modal .card { width:720px; max-width:95%; max-height:85vh; overflow:auto; padding:16px; border-radius:10px; }
     .player-list { margin-top:8px; display:grid; grid-template-columns: repeat(2, 1fr); gap:8px; }
     .player-item { padding:6px; background:rgba(255,255,255,0.02); border-radius:6px; display:flex; justify-content:space-between; }
     .muted { color:var(--muted); }
     .small { font-size:0.85rem; }
+    .logo-thumb { width:48px;height:48px;border-radius:8px;object-fit:cover;margin-right:8px }
   </style>
 </head>
 <body>
   <div class="app">
     <script src="/js/layout.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
 
     <main class="main">
       <section class="card">
@@ -75,31 +77,27 @@
 
 <script>
 (async function(){
-  // helpers
   function qs(q){ return document.querySelector(q); }
   function qsa(q){ return Array.from(document.querySelectorAll(q)); }
   function escapeHtml(s){ if (s===null||s===undefined) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-  // read match id from query param
   const urlParams = new URLSearchParams(location.search);
   const MATCH_ID = urlParams.get('match') || '';
   document.getElementById('matchIdLabel').textContent = MATCH_ID || 'none';
 
-  // state
   let TEAMS = [];
-  let ADMIN_TOKEN = null;        // x-admin-token (prompt)
-  let JWT = localStorage.getItem('token') || null; // Bearer token if logged in
+  let ADMIN_TOKEN = null;
+  let JWT = localStorage.getItem('token') || null;
 
-  // socket (optional)
+  // socket
   let socket = null;
   try {
-    socket = io(); // require socket.io client is served by server
+    socket = io();
     socket.on('connect', ()=>{ if (MATCH_ID) socket.emit('joinMatch', MATCH_ID); });
     socket.on('teamDeleted', (d) => { if (d && String(d.matchId) === String(MATCH_ID)) loadTeams(); });
     socket.on('teamCreated', (d) => { if (d && String(d.matchId) === String(MATCH_ID)) loadTeams(); });
-  } catch (e){ /* ignore if socket not available */ }
+  } catch (e){ console.warn('socket not available', e); }
 
-  // UI wiring
   qs('#refreshBtn').addEventListener('click', loadTeams);
   qs('#btnAdminAuth').addEventListener('click', async ()=>{
     const t = prompt('Paste ADMIN token (x-admin-token) or leave empty to clear:');
@@ -107,7 +105,6 @@
     alert(ADMIN_TOKEN ? 'Admin token set (will be used for deletes).' : 'Admin token cleared.');
   });
 
-  // Modal elements
   const viewModal = qs('#viewModal');
   const modalTeamName = qs('#modalTeamName');
   const modalViewerName = qs('#modalViewerName');
@@ -130,7 +127,6 @@
     modalLinkedChannel.textContent = team.linkedChannel || '—';
     modalCaptVice.textContent = `Captain: ${team.captain || '—'}  Vice: ${team.vice || '—'}`;
 
-    // players
     modalPlayerList.innerHTML = '';
     (team.players || []).forEach((p, i) => {
       const el = document.createElement('div');
@@ -139,13 +135,18 @@
       modalPlayerList.appendChild(el);
     });
 
-    // delete button visible if allowed
     if (canDelete) {
       modalDeleteBtn.style.display = 'inline-block';
       modalDeleteBtn.onclick = async () => {
         if (!confirm('Delete this team? This cannot be undone.')) return;
-        await deleteTeam(team.matchId || MATCH_ID, team._id);
-        closeModal();
+        try {
+          await deleteTeam(team.matchId || MATCH_ID, team._id);
+          closeModal();
+          loadTeams();
+          alert('Deleted');
+        } catch (err) {
+          alert('Delete failed: ' + (err.message || err));
+        }
       };
     } else {
       modalDeleteBtn.style.display = 'none';
@@ -155,30 +156,71 @@
     viewModal.style.display = 'flex';
   }
 
-  function closeModal() {
-    viewModal.style.display = 'none';
-  }
+  function closeModal() { viewModal.style.display = 'none'; }
 
-  // API helpers
   async function apiGet(path) {
     const res = await fetch(path);
     if (!res.ok) throw new Error('Network error: ' + res.status);
     return res.json();
   }
 
-  async function apiDelete(path) {
-    // choose header: prefer JWT (auth) if present, else admin token via x-admin-token
-    const headers = {};
-    if (JWT) headers['Authorization'] = 'Bearer ' + JWT;
-    else if (ADMIN_TOKEN) headers['x-admin-token'] = ADMIN_TOKEN;
-    const res = await fetch(path, { method: 'DELETE', headers });
-    if (res.status === 401) throw new Error('Unauthorized (delete): admin token or login required');
-    if (res.status === 403) throw new Error('Forbidden (delete): not allowed');
-    const j = await res.json();
-    return j;
+  async function deleteTeam(matchId, teamId) {
+    if (!matchId || !teamId) throw new Error('Missing ids');
+    async function doDelete(headers) {
+      const res = await fetch(`/api/matches/${matchId}/teams/${teamId}`, { method:'DELETE', headers });
+      let body = null;
+      try { body = await res.json(); } catch (e) { body = { ok:false, error: 'Invalid JSON' }; }
+      return { status: res.status, body };
+    }
+
+    const jwt = localStorage.getItem('token');
+    if (jwt) {
+      try {
+        const r = await doDelete({ 'Authorization': 'Bearer ' + jwt });
+        if (r.status >=200 && r.status < 300 && r.body && r.body.ok) return r.body;
+        if (r.status === 403) throw new Error((r.body && (r.body.error || r.body.message)) || 'Forbidden');
+      } catch (err) {
+        console.warn('Delete with JWT error', err);
+      }
+    }
+
+    let adminToken = window.__ADMIN_TOKEN__ || ADMIN_TOKEN || null;
+    if (!adminToken) {
+      adminToken = prompt('Enter ADMIN token (x-admin-token) to delete team (Cancel to abort):');
+      if (!adminToken) throw new Error('Admin token required to delete');
+      window.__ADMIN_TOKEN__ = adminToken;
+    }
+
+    const r2 = await doDelete({ 'x-admin-token': adminToken });
+    if (r2.status >=200 && r2.status < 300 && r2.body && r2.body.ok) return r2.body;
+    if (r2.status === 401) {
+      window.__ADMIN_TOKEN__ = null;
+      throw new Error('Admin token rejected (401). Please check the token and try again.');
+    }
+    throw new Error((r2.body && (r2.body.error || r2.body.message)) || `HTTP ${r2.status}`);
   }
 
-  // load teams for match
+  function tryGetUserIdFromJwt() {
+    try {
+      const t = localStorage.getItem('token');
+      if (!t) return null;
+      const parts = t.split('.');
+      if (parts.length < 2) return null;
+      const payload = JSON.parse(atob(parts[1].replace(/-/g,'+').replace(/_/g,'/')));
+      return payload && (payload.id || payload.userId || payload.sub) || null;
+    } catch (e) { return null; }
+  }
+  function tryGetRoleFromJwt() {
+    try {
+      const t = localStorage.getItem('token');
+      if (!t) return null;
+      const parts = t.split('.');
+      if (parts.length < 2) return null;
+      const payload = JSON.parse(atob(parts[1].replace(/-/g,'+').replace(/_/g,'/')));
+      return payload && payload.role || null;
+    } catch (e) { return null; }
+  }
+
   async function loadTeams(){
     const container = qs('#teamsContainer');
     if (!MATCH_ID) { container.innerHTML = '<div class="muted">No match selected. Provide ?match=&lt;id&gt; in URL.</div>'; return; }
@@ -193,17 +235,27 @@
       TEAMS.forEach(team => {
         const row = document.createElement('div');
         row.className = 'team-row';
+
+        const logo = document.createElement('img');
+        logo.className = 'logo-thumb';
+        logo.src = team.logoUrl || '/assets/logo.png';
+        logo.onerror = function(){ this.src = '/assets/logo.png'; };
+
         const info = document.createElement('div');
         info.className = 'team-info';
-        info.innerHTML = `<div style="font-weight:700">${escapeHtml(team.name || team.viewerName || 'Team')}</div>
-                          <div class="team-meta muted small">${escapeHtml(team.viewerName || '')} • ${escapeHtml(new Date(team.createdAt||0).toLocaleString())}</div>`;
+        info.innerHTML = `<div style="display:flex;align-items:center;">
+                            <div style="display:flex;flex-direction:column;">
+                              <div style="font-weight:700">${escapeHtml(team.name || team.viewerName || 'Team')}</div>
+                              <div class="team-meta muted small">${escapeHtml(team.viewerName || '')} • ${escapeHtml(new Date(team.createdAt||0).toLocaleString())}</div>
+                            </div>
+                          </div>`;
+
         const actions = document.createElement('div');
 
         const viewBtn = document.createElement('button');
         viewBtn.className = 'btn-ghost btn-small';
         viewBtn.textContent = 'View';
         viewBtn.addEventListener('click', ()=> {
-          // determine if user can delete: admin or owner
           const tokenUserId = tryGetUserIdFromJwt();
           const isOwner = tokenUserId && team.viewerId && String(tokenUserId) === String(team.viewerId);
           const hasAdminToken = !!ADMIN_TOKEN || !!JWT && tryGetRoleFromJwt() === 'admin';
@@ -213,7 +265,7 @@
         const deleteBtn = document.createElement('button');
         deleteBtn.className = 'btn-danger btn-small';
         deleteBtn.textContent = 'Delete';
-        // show delete inline only if we detect owner or admin (client-side hint)
+
         const tokenUserId = tryGetUserIdFromJwt();
         const isOwner = tokenUserId && team.viewerId && String(tokenUserId) === String(team.viewerId);
         const hasAdminToken = !!ADMIN_TOKEN || !!JWT && tryGetRoleFromJwt() === 'admin';
@@ -224,18 +276,18 @@
           if (!confirm('Delete this team?')) return;
           try {
             await deleteTeam(team.matchId || MATCH_ID, team._id);
-            // remove from UI
             loadTeams();
             alert('Deleted');
           } catch (err) {
             alert('Delete failed: ' + (err.message || err));
+            console.error('Delete failed', err);
           }
         });
 
+        row.appendChild(logo);
+        row.appendChild(info);
         actions.appendChild(viewBtn);
         actions.appendChild(deleteBtn);
-
-        row.appendChild(info);
         row.appendChild(actions);
         container.appendChild(row);
       });
@@ -246,45 +298,8 @@
     }
   }
 
-  // delete team helper
-  async function deleteTeam(matchId, teamId) {
-    if (!matchId || !teamId) throw new Error('Missing ids');
-    const path = `/api/matches/${matchId}/teams/${teamId}`;
-    const res = await apiDelete(path);
-    if (!res || !res.ok) {
-      throw new Error((res && (res.error || res.message)) || 'Delete failed');
-    }
-    // emit socket event locally (server will also broadcast)
-    try { if (socket && socket.connected) socket.emit('teamDeleted', { matchId, teamId }); } catch(e){}
-    return res;
-  }
-
-  // Try to decode user id & role from JWT stored in localStorage (simple parse, no verify)
-  function tryGetUserIdFromJwt() {
-    try {
-      const t = JWT || localStorage.getItem('token');
-      if (!t) return null;
-      const parts = t.split('.');
-      if (parts.length < 2) return null;
-      const payload = JSON.parse(atob(parts[1].replace(/-/g,'+').replace(/_/g,'/')));
-      return payload && (payload.id || payload.userId || payload.sub) || null;
-    } catch (e) { return null; }
-  }
-  function tryGetRoleFromJwt() {
-    try {
-      const t = JWT || localStorage.getItem('token');
-      if (!t) return null;
-      const parts = t.split('.');
-      if (parts.length < 2) return null;
-      const payload = JSON.parse(atob(parts[1].replace(/-/g,'+').replace(/_/g,'/')));
-      return payload && payload.role || null;
-    } catch (e) { return null; }
-  }
-
-  // initial load
   await loadTeams();
 
-  // expose quick helpers to console for debugging
   window._teams_reload = loadTeams;
   window._teams_state = () => ({ MATCH_ID, TEAMS, ADMIN_TOKEN, JWT });
 

@@ -3,8 +3,16 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Create Team • Beowulf Community Cup Fantasy</title>
+  <title>Create Team • Beowulf Fantasy</title>
   <link rel="stylesheet" href="/css/style.css" />
+  <style>
+    .players-grid { display:grid; grid-template-columns: repeat(2,1fr); gap:8px; }
+    .player-chip { padding:8px; border-radius:8px; background:var(--card); display:flex; justify-content:space-between; align-items:center; }
+    .btn { padding:8px 12px; border-radius:8px; cursor:pointer; }
+    .muted { color:var(--muted); }
+    .small { font-size:0.9rem; }
+    .error { color:#f44; }
+  </style>
 </head>
 <body>
   <div class="app">
@@ -12,320 +20,330 @@
 
     <main class="main">
       <section class="card">
-        <div style="display:flex;justify-content:space-between;align-items:center">
-          <div>
-            <h2>Create Your Fantasy Team</h2>
-            <div class="muted">Pick 11 players, set captain &amp; vice. Your avatar will be used as the team badge.</div>
-          </div>
-          <div>
-            <a class="btn-ghost" href="/">Back</a>
+        <h2>Create Team</h2>
+        <p class="muted small">Build your XI for the match. You must be logged in to create a team.</p>
+
+        <div style="margin-top:12px;">
+          <label>Match</label>
+          <div style="display:flex;gap:8px;align-items:center;margin-top:6px;">
+            <select id="matchSelect" class="input" style="flex:1"></select>
+            <div id="matchInfo" class="muted small" style="min-width:220px;text-align:right;"></div>
           </div>
         </div>
 
-        <div style="margin-top:14px">
-          <div style="display:flex;gap:10px;flex-wrap:wrap;">
-            <select id="matchSelect" class="input" style="flex:1;min-width:220px"></select>
-            <button id="nearestBtn" class="btn-ghost">Nearest</button>
-          </div>
+        <div style="margin-top:12px;">
+          <label>Your display name</label>
+          <input id="viewerName" class="input" placeholder="Viewer name (from profile)" />
+          <div class="muted small">This is used to link your team. If empty you'll be asked to login.</div>
+        </div>
 
-          <div style="margin-top:12px">
-            <input id="playerSearch" class="input" placeholder="Search players by name or role" />
-          </div>
+        <div style="margin-top:12px;">
+          <label>Players (click to toggle select)</label>
+          <div id="playersGrid" class="players-grid" style="margin-top:8px;"></div>
+          <div class="muted small" style="margin-top:8px">Selected: <span id="selectedCount">0</span>/11</div>
+        </div>
 
-          <div id="playersContainer" style="margin-top:12px">
-            <div class="muted">Select a match to load players</div>
+        <div style="margin-top:12px; display:flex; gap:8px; align-items:center;">
+          <div style="flex:1">
+            <label>Captain</label>
+            <select id="captainSelect" class="input"></select>
           </div>
-
-          <div style="margin-top:12px">
-            <label class="muted small">Team name (optional)</label>
-            <input id="teamName" class="input" placeholder="My Awesome XI" />
-          </div>
-
-          <div style="margin-top:12px">
-            <div style="display:flex;gap:8px;align-items:center;">
-              <label class="muted small" style="min-width:70px">Captain</label>
-              <select id="captainSelect" class="input" style="flex:1"><option value="">-- select --</option></select>
-            </div>
-            <div style="display:flex;gap:8px;align-items:center;margin-top:8px;">
-              <label class="muted small" style="min-width:70px">Vice</label>
-              <select id="viceSelect" class="input" style="flex:1"><option value="">-- select --</option></select>
-            </div>
-          </div>
-
-          <div style="margin-top:14px; display:flex; gap:8px; flex-wrap:wrap;">
-            <button id="submitTeam" class="btn">Create Team</button>
-            <button id="saveDraft" class="btn-ghost">Save draft</button>
-            <button id="uploadLogo" class="btn-ghost">Upload Logo (optional)</button>
-            <span id="msg" style="margin-left:12px"></span>
-          </div>
-
-          <div style="margin-top:14px" class="card">
-            <div style="font-weight:700">Your XI (<span id="pickedCount">0</span>/11)</div>
-            <div id="xiList" style="margin-top:8px" class="muted small">No players selected</div>
+          <div style="flex:1">
+            <label>Vice</label>
+            <select id="viceSelect" class="input"></select>
           </div>
         </div>
+
+        <div style="margin-top:12px; display:flex; gap:8px;">
+          <button id="submitTeam" class="btn btn-primary">Create Team</button>
+          <button id="saveDraft" class="btn btn-ghost">Save Draft</button>
+          <div id="msg" class="muted small" style="margin-left:8px"></div>
+        </div>
+
+        <div id="errorBox" class="error small" style="margin-top:10px;display:none"></div>
       </section>
     </main>
   </div>
 
 <script>
-/* create-team.html
-   - After creating a team, wait for teams/me to be available then redirect to contests page
-     with contestId and autoJoin=1 so contests page will try to join immediately.
-*/
+(async function(){
+  const matchSelect = document.getElementById('matchSelect');
+  const matchInfo = document.getElementById('matchInfo');
+  const playersGrid = document.getElementById('playersGrid');
+  const selectedCountEl = document.getElementById('selectedCount');
+  const captainSelect = document.getElementById('captainSelect');
+  const viceSelect = document.getElementById('viceSelect');
+  const viewerNameInput = document.getElementById('viewerName');
+  const submitBtn = document.getElementById('submitTeam');
+  const saveDraftBtn = document.getElementById('saveDraft');
+  const msg = document.getElementById('msg');
+  const errorBox = document.getElementById('errorBox');
 
-const $ = id => document.getElementById(id);
+  let ALL_PLAYERS = [];      // available players for the match
+  const chosenXI = [];       // player names
+  let selectedMatch = null;  // match id
 
-function preferGet(path){
-  if (window.App && typeof App.get === 'function') {
-    return App.get(path).catch(()=>fetch(path).then(r=>r.json()));
-  }
-  return fetch(path).then(r=>r.json());
-}
-function apiGet(path){ return preferGet(path); }
-function apiAuthFetch(path, opts = {}) {
-  opts.headers = opts.headers || {};
-  const t = localStorage.getItem('token');
-  if (t) opts.headers['Authorization'] = 'Bearer ' + t;
-  return fetch(path, opts).then(r => r.json().catch(()=>({ok:false})));
-}
+  // helper
+  function q(s){ return document.querySelector(s); }
+  function escapeHtml(s){ if (s===null||s===undefined) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function showError(text){ errorBox.style.display = text ? 'block' : 'none'; errorBox.textContent = text || ''; }
+  function setMsg(t){ msg.textContent = t || ''; }
 
-let MATCHES = [], CURRENT = null, ALL_PLAYERS = [], CHOSEN = [], MY_TEAM = null;
-
-function qparam(k){ const u = new URLSearchParams(location.search); return u.get(k); }
-function pickMatchFromQuery(){ return qparam('match') || qparam('matchId') || null; }
-
-function escapeHtml(s){ if (s==null) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
-function initials(name){ if(!name) return 'U'; const p = name.trim().split(/\s+/); return p.length === 1 ? (p[0][0]||'').toUpperCase() : ((p[0][0]||'') + (p[1][0]||'')).toUpperCase(); }
-
-async function loadMatches(){
-  $('matchSelect').innerHTML = '<option>Loading matches…</option>';
-  try {
-    const matches = await apiGet('/api/matches');
-    MATCHES = Array.isArray(matches) ? matches.filter(m => !m.archived) : [];
-    MATCHES.sort((a,b)=> new Date(a.startTime||0) - new Date(b.startTime||0));
-    if (!MATCHES.length) { $('matchSelect').innerHTML = '<option>No matches</option>'; return; }
-    $('matchSelect').innerHTML = MATCHES.map(m => `<option value="${m._id}">${escapeHtml(m.name || (m.teamA+' vs '+m.teamB))} — ${m.startTime? new Date(m.startTime).toLocaleString() : 'TBD'}</option>`).join('');
-    const q = pickMatchFromQuery();
-    let sel = 0;
-    if (q) {
-      const idx = MATCHES.findIndex(x => String(x._id) === String(q));
-      if (idx !== -1) sel = idx;
-    } else {
-      const now = Date.now();
-      const idx = MATCHES.findIndex(m => m.startTime && new Date(m.startTime).getTime() > now);
-      sel = idx === -1 ? 0 : idx;
-    }
-    $('matchSelect').selectedIndex = sel;
-    CURRENT = MATCHES[sel];
-    await onMatchChange();
-  } catch (err) {
-    console.error('loadMatches', err);
-    $('matchSelect').innerHTML = '<option>Error</option>';
-  }
-}
-
-$('matchSelect').addEventListener('change', async (e)=> {
-  CURRENT = MATCHES[e.target.selectedIndex];
-  await onMatchChange();
-});
-$('nearestBtn').addEventListener('click', ()=> {
-  const now = Date.now();
-  const idx = MATCHES.findIndex(m => m.startTime && new Date(m.startTime).getTime() > now);
-  const sel = idx === -1 ? 0 : idx;
-  $('matchSelect').selectedIndex = sel;
-  CURRENT = MATCHES[sel];
-  onMatchChange();
-});
-
-$('playerSearch').addEventListener('input',(e)=>{
-  const q = (e.target.value||'').toLowerCase().trim();
-  if (!q) { renderPlayers(ALL_PLAYERS); return; }
-  const filtered = ALL_PLAYERS.filter(p => (p.playerName||p.name||'').toLowerCase().includes(q) || (p.role||'').toLowerCase().includes(q));
-  renderPlayers(filtered);
-});
-
-function renderPlayers(players){
-  const c = $('playersContainer');
-  c.innerHTML = '';
-  if (!players || players.length === 0) { c.innerHTML = '<div class="muted small">No players</div>'; return; }
-  const list = document.createElement('div');
-  list.style.display = 'grid';
-  list.style.gridTemplateColumns = '1fr';
-  list.style.gap = '8px';
-  players.forEach(p => {
-    const name = p.playerName || p.name || 'Unknown';
-    const role = p.role || p.position || '';
-    const row = document.createElement('div');
-    row.className = 'card';
-    row.style.display = 'flex';
-    row.style.justifyContent = 'space-between';
-    row.style.alignItems = 'center';
-    row.innerHTML = `<div style="display:flex;gap:12px;align-items:center">
-        <div style="width:48px;height:48px;border-radius:6px;background:#5b1f1f;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700">${initials(name)}</div>
-        <div>
-          <div style="font-weight:700">${escapeHtml(name)}</div>
-          <div class="muted small">${escapeHtml(role)}</div>
-        </div>
-      </div>
-      <div>
-        <button class="btn-ghost small">${CHOSEN.includes(name) ? 'Remove' : 'Pick'}</button>
-      </div>`;
-    const btn = row.querySelector('button');
-    btn.addEventListener('click', ()=> {
-      const idx = CHOSEN.indexOf(name);
-      if (idx === -1) {
-        if (CHOSEN.length >= 11) { showMsg('You already picked 11 players', false); return; }
-        CHOSEN.push(name); btn.textContent = 'Remove';
-      } else { CHOSEN.splice(idx,1); btn.textContent = 'Pick'; }
-      refreshXI();
-    });
-    list.appendChild(row);
-  });
-  c.appendChild(list);
-}
-
-function refreshXI(){
-  $('pickedCount').textContent = CHOSEN.length;
-  const list = $('xiList');
-  list.innerHTML = CHOSEN.map((p,i)=>`<div style="padding:6px 0;border-bottom:1px dashed rgba(255,255,255,0.02)">${i+1}. ${escapeHtml(p)}</div>`).join('') || '<div class="muted small">No players selected</div>';
-  const cap = $('captainSelect'), vic = $('viceSelect');
-  const prevCap = cap.value, prevVice = vic.value;
-  cap.innerHTML = '<option value="">-- select --</option>'; vic.innerHTML = '<option value="">-- select --</option>';
-  CHOSEN.forEach(n => { const o = document.createElement('option'); o.value = n; o.textContent = n; cap.appendChild(o); const o2 = o.cloneNode(true); vic.appendChild(o2); });
-  if (prevCap) cap.value = prevCap; if (prevVice) vic.value = prevVice;
-}
-
-function showMsg(txt, ok=true){
-  const box = $('msg');
-  box.textContent = txt;
-  box.className = ok ? 'muted' : 'err';
-  setTimeout(()=>{ if (box.textContent === txt) box.textContent = ''; }, ok ? 3000 : 6000);
-}
-
-async function onMatchChange(){
-  const c = CURRENT;
-  $('playersContainer').innerHTML = '<div class="muted small">Loading players…</div>';
-  CHOSEN = []; MY_TEAM = null; refreshXI();
-  if (!c) return $('playersContainer').innerHTML = '<div class="muted small">Select a match</div>';
-  try {
-    const j = await apiGet(`/api/matches/${c._id}/players`);
-    const players = Array.isArray(j) ? j : (Array.isArray(j.players) ? j.players : (j.players || []));
-    ALL_PLAYERS = players; renderPlayers(ALL_PLAYERS);
-    // try to load existing team
+  // Read ?match=<id> fallback
+  const urlParams = new URLSearchParams(location.search);
+  const initialMatchId = urlParams.get('match');
+  // load matches to allow admin pick or if not provided
+  async function loadMatches(){
     try {
-      const token = localStorage.getItem('token');
-      if (token) {
-        const meTeam = await fetch(`/api/matches/${c._id}/teams/me`, { headers: { Authorization: 'Bearer ' + token }});
-        if (meTeam.ok) {
-          const o = await meTeam.json().catch(()=>({}));
-          const team = o.team || o;
-          if (team && team.players && team.players.length) {
-            MY_TEAM = team;
-            CHOSEN = (MY_TEAM.players||[]).slice(0,11);
-            $('teamName').value = MY_TEAM.name || '';
-            refreshXI();
-          }
-        }
+      const res = await fetch('/api/matches');
+      const arr = await res.json();
+      matchSelect.innerHTML = '<option value="">Select match...</option>';
+      arr.sort((a,b)=> (new Date(a.startTime||0) - new Date(b.startTime||0)));
+      arr.forEach(m => {
+        const title = m.name || ((m.teamA||'') + ' vs ' + (m.teamB||''));
+        const opt = document.createElement('option');
+        opt.value = m._id;
+        opt.textContent = `${title} • ${m.startTime ? new Date(m.startTime).toLocaleString() : '—'}`;
+        matchSelect.appendChild(opt);
+      });
+      if (initialMatchId) {
+        matchSelect.value = initialMatchId;
+        matchSelect.dispatchEvent(new Event('change'));
       }
-    } catch (e) { /* ignore */ }
-  } catch (err) {
-    console.error('onMatchChange', err);
-    $('playersContainer').innerHTML = '<div class="muted small">Failed to load players</div>';
+    } catch (e) {
+      console.error('loadMatches', e);
+    }
   }
-}
 
-$('saveDraft').addEventListener('click', ()=>{
-  if (!CURRENT) return showMsg('Select match first', false);
-  const draft = { chosen: CHOSEN, captain: $('captainSelect').value, vice: $('viceSelect').value, name: $('teamName').value };
-  localStorage.setItem(`draft_${CURRENT._id}`, JSON.stringify(draft));
-  showMsg('Draft saved');
-});
+  matchSelect.addEventListener('change', async (e) => {
+    selectedMatch = e.target.value || null;
+    matchInfo.textContent = selectedMatch ? 'Loading players…' : '';
+    ALL_PLAYERS = [];
+    chosenXI.length = 0;
+    await loadPlayersForMatch(selectedMatch);
+    renderPlayersGrid();
+    renderCaptViceOptions();
+    updateSelectedCount();
+  });
 
-// Create team handler — ensures team exists on server before redirecting.
-// If "contestId" query param exists, redirect to contests page with autoJoin=1 (so front-end will auto-join).
-$('submitTeam').addEventListener('click', async ()=>{
-  if (!CURRENT) return showMsg('Select match first', false);
-  if (CHOSEN.length !== 11) return showMsg('Pick exactly 11 players', false);
-  const captain = $('captainSelect').value; if (!captain) return showMsg('Select a captain', false);
-  const token = localStorage.getItem('token'); if (!token) { alert('Please login to create a team.'); location.href = '/login.html'; return; }
+  // load players of a match
+  async function loadPlayersForMatch(matchId){
+    if (!matchId) { playersGrid.innerHTML = '<div class="muted">Select a match</div>'; return; }
+    try {
+      const res = await fetch(`/api/matches/${matchId}/players`);
+      const j = await res.json();
+      if (!j.ok) { playersGrid.innerHTML = '<div class="muted">Failed to load players</div>'; return; }
+      ALL_PLAYERS = j.players || [];
+      playersGrid.innerHTML = '';
+      matchInfo.textContent = `${ALL_PLAYERS.length} players loaded`;
+      renderPlayersGrid();
+    } catch (err) {
+      console.error('loadPlayersForMatch', err);
+      playersGrid.innerHTML = '<div class="muted">Error loading players</div>';
+    }
+  }
 
-  try {
-    const m = await apiGet(`/api/matches/${CURRENT._id}`);
-    if (m && m.startTime && Date.now() > new Date(m.startTime).getTime()) return showMsg('Team creation closed: match already started', false);
-  } catch {}
-
-  try {
-    const payload = { matchId: CURRENT._id, players: CHOSEN, captain, vice: $('viceSelect').value, name: $('teamName').value || undefined };
-    const res = await apiAuthFetch(`/api/matches/${CURRENT._id}/teams`, {
-      method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload)
+  function renderPlayersGrid(){
+    playersGrid.innerHTML = '';
+    ALL_PLAYERS.forEach(p => {
+      const name = (p.playerName || p.player || p) ;
+      const div = document.createElement('div');
+      div.className = 'player-chip';
+      div.innerHTML = `<span>${escapeHtml(name)}</span><button class="btn btn-ghost small">Add</button>`;
+      const btn = div.querySelector('button');
+      btn.addEventListener('click', () => {
+        toggleSelectPlayer(name, btn);
+      });
+      // mark if selected
+      if (chosenXI.includes(name)) btn.textContent = 'Remove';
+      playersGrid.appendChild(div);
     });
-    if (res && (res.ok || res.success)) {
-      showMsg('Team created!', true);
-      // Wait for teams/me to become available — retry for a few seconds (helps if DB replication or race)
-      const token = localStorage.getItem('token');
-      const maxAttempts = 10;
-      let got = null;
-      for (let i=0;i<maxAttempts;i++){
-        try {
-          const meTeamResp = await fetch(`/api/matches/${CURRENT._id}/teams/me`, { headers:{ Authorization: 'Bearer ' + token }});
-          if (meTeamResp.ok) {
-            const o = await meTeamResp.json().catch(()=>({}));
-            const team = o.team || o;
-            if (team && (team._id || team.id)) { got = team; break; }
-          }
-        } catch(e){}
-        // small delay
-        await new Promise(r=>setTimeout(r, 400));
-      }
+    renderCaptViceOptions();
+  }
 
-      // If we didn't get teams/me, try listing teams and find by displayName
-      if (!got && token) {
-        try {
-          const me = await fetch('/api/me', { headers:{ Authorization: 'Bearer ' + token }});
-          const meJson = await me.json().catch(()=>({}));
-          const displayName = meJson && meJson.user && meJson.user.displayName;
-          if (displayName) {
-            const teamsListResp = await fetch(`/api/matches/${CURRENT._id}/teams`);
-            if (teamsListResp.ok) {
-              const tl = await teamsListResp.json().catch(()=>[]);
-              const teams = Array.isArray(tl) ? tl : (tl.teams || []);
-              const found = teams.find(t => (t.viewerName || t.name || '').toString().toLowerCase() === String(displayName).toLowerCase());
-              if (found) got = found;
-            }
-          }
-        } catch(e){}
-      }
+  function toggleSelectPlayer(name, btnEl){
+    const idx = chosenXI.indexOf(name);
+    if (idx === -1) {
+      if (chosenXI.length >= 11) { alert('You can only select 11 players'); return; }
+      chosenXI.push(name);
+      btnEl.textContent = 'Remove';
+    } else {
+      chosenXI.splice(idx,1);
+      btnEl.textContent = 'Add';
+    }
+    renderCaptViceOptions();
+    updateSelectedCount();
+  }
 
-      // After creation, redirect to contests page. If original URL had contestId param use it & autoJoin
-      const originalContestId = qparam('contestId') || qparam('contest');
-      const matchId = CURRENT._id;
-      if (originalContestId && got && (got._id || got.id)) {
-        // redirect and request auto-join
-        const url = `/contests.html?match=${encodeURIComponent(matchId)}&contestId=${encodeURIComponent(originalContestId)}&autoJoin=1`;
-        location.href = url;
-        return;
-      } else if (originalContestId) {
-        // still redirect but without autoJoin (team detection failed)
-        location.href = `/contests.html?match=${encodeURIComponent(matchId)}&contestId=${encodeURIComponent(originalContestId)}`;
+  function renderCaptViceOptions(){
+    const opts = ['<option value="">--</option>'];
+    chosenXI.forEach(p => opts.push(`<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`));
+    captainSelect.innerHTML = opts.join('');
+    viceSelect.innerHTML = opts.join('');
+  }
+
+  function updateSelectedCount(){
+    selectedCountEl.textContent = String(chosenXI.length);
+  }
+
+  // load profile to prefill viewerName
+  async function loadProfile(){
+    const token = localStorage.getItem('token');
+    if (!token) { setMsg('Not logged in — please log in to create a team'); return; }
+    try {
+      const r = await fetch('/api/me', { headers: { Authorization: 'Bearer ' + token }});
+      if (!r.ok) { setMsg('Failed to fetch profile — please login again'); return; }
+      const j = await r.json();
+      if (j && j.ok && j.user) {
+        viewerNameInput.value = j.user.displayName || j.user.email || '';
+        setMsg(`Logged as ${viewerNameInput.value}`);
+      } else {
+        setMsg('Profile unavailable');
+      }
+    } catch (e) {
+      console.warn('loadProfile', e);
+      setMsg('Profile load error');
+    }
+  }
+
+  // choose best contest after create
+  async function findBestContestAndRedirect(matchId) {
+    try {
+      const r = await fetch(`/api/matches/${matchId}/contests`, { headers: { 'Content-Type': 'application/json' }});
+      if (!r.ok) { window.location.href = `/contests.html?match=${encodeURIComponent(matchId)}`; return; }
+      const list = await r.json();
+      if (!Array.isArray(list) || list.length === 0) {
+        window.location.href = `/contests.html?match=${encodeURIComponent(matchId)}`; return;
+      }
+      // pick first non-closed, not full, where viewer hasn't exhausted perViewerLimit
+      const viewer = viewerNameInput.value && viewerNameInput.value.trim();
+      let pick = null;
+      for (const c of list) {
+        if (c.closed) continue;
+        const entryCount = typeof c.entryCount === 'number' ? c.entryCount : (c.entryCount || 0);
+        const maxEntries = c.maxEntries || 0;
+        if (maxEntries && entryCount >= maxEntries) continue;
+        if (viewer && c.perViewerLimit) {
+          const myEntries = c.myEntries || 0;
+          if (myEntries >= c.perViewerLimit) continue;
+        }
+        pick = c; break;
+      }
+      if (pick) {
+        window.location.href = `/contests.html?match=${encodeURIComponent(matchId)}&contest=${encodeURIComponent(pick._id)}`;
+      } else {
+        window.location.href = `/contests.html?match=${encodeURIComponent(matchId)}`;
+      }
+    } catch (e) {
+      console.warn('findBestContestAndRedirect', e);
+      window.location.href = `/contests.html?match=${encodeURIComponent(matchId)}`;
+    }
+  }
+
+  // submit team
+  submitBtn.addEventListener('click', async () => {
+    showError('');
+    setMsg('');
+    if (!selectedMatch) { showError('Select a match'); return; }
+    if (chosenXI.length !== 11) { showError('You must select exactly 11 players'); return; }
+    const captain = captainSelect.value || null;
+    const vice = viceSelect.value || null;
+    if (!captain) { showError('Select a captain'); return; }
+    if (!vice) { showError('Select a vice'); return; }
+    const token = localStorage.getItem('token');
+    if (!token) { showError('Not logged in. Please login to create a team.'); return; }
+
+    // fetch viewer profile to ensure token valid and get viewerName
+    let viewerName = viewerNameInput.value && viewerNameInput.value.trim();
+    try {
+      const rme = await fetch('/api/me', { headers: { Authorization: 'Bearer ' + token }});
+      if (!rme.ok) { showError('Unauthorized. Please login again.'); return; }
+      const jm = await rme.json();
+      if (jm && jm.ok && jm.user) {
+        viewerName = jm.user.displayName || jm.user.email || viewerName || '';
+      }
+    } catch (e) {
+      console.warn('profile check failed', e);
+    }
+    if (!viewerName) { showError('Viewer name unavailable — ensure your profile has a displayName'); return; }
+
+    // send create
+    const payload = {
+      players: chosenXI,
+      captain,
+      vice,
+      name: `${viewerName}'s Team`
+    };
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Creating…';
+    try {
+      const res = await fetch(`/api/matches/${encodeURIComponent(selectedMatch)}/teams`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify(payload)
+      });
+      const j = await res.json();
+      if (res.ok && j && j.ok) {
+        setMsg('Team created successfully — redirecting to contest…');
+        // auto-redirect to best contest
+        await findBestContestAndRedirect(selectedMatch);
         return;
       } else {
-        // default: take user to contests for the match
-        location.href = `/contests.html?match=${encodeURIComponent(matchId)}`;
-        return;
+        const err = (j && (j.error || j.message)) || `HTTP ${res.status}`;
+        showError('Create failed: ' + err);
+        // If 401 -> clear token
+        if (res.status === 401) localStorage.removeItem('token');
       }
-    } else {
-      showMsg('Create failed: ' + (res && res.error || JSON.stringify(res)), false);
+    } catch (e) {
+      console.error('create team request failed', e);
+      showError('Create request failed: ' + (e.message || e));
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Create Team';
     }
-  } catch (err) {
-    console.error(err);
-    showMsg('Create failed', false);
-  }
-});
+  });
 
-(async function init(){
+  // Save draft (localStorage)
+  saveDraftBtn.addEventListener('click', () => {
+    const draft = { matchId: selectedMatch, chosenXI, captain: captainSelect.value, vice: viceSelect.value, name: viewerNameInput.value };
+    localStorage.setItem('teamDraft_' + (selectedMatch||'none'), JSON.stringify(draft));
+    setMsg('Draft saved locally');
+  });
+
+  // load draft if present
+  function loadDraftForMatch(matchId){
+    try {
+      const raw = localStorage.getItem('teamDraft_' + (matchId||'none'));
+      if (!raw) return;
+      const d = JSON.parse(raw);
+      if (!d) return;
+      if (Array.isArray(d.chosenXI)) {
+        chosenXI.length = 0;
+        d.chosenXI.slice(0,11).forEach(x => chosenXI.push(x));
+      }
+      setTimeout(() => { renderPlayersGrid(); renderCaptViceOptions(); updateSelectedCount(); }, 100);
+      if (d.captain) captainSelect.value = d.captain;
+      if (d.vice) viceSelect.value = d.vice;
+      if (d.name) viewerNameInput.value = d.name;
+      setMsg('Draft loaded');
+    } catch (e){ /* ignore */ }
+  }
+
+  // init
   await loadMatches();
-  try { if (window.App && typeof App.init === 'function') App.init(); } catch(e){}
+  if (initialMatchId) {
+    // loadPlayersForMatch called by matchSelect change handler
+  } else {
+    // If only one upcoming match, auto-select it
+    const sel = matchSelect.querySelectorAll('option');
+    if (sel.length === 2) { matchSelect.selectedIndex = 1; matchSelect.dispatchEvent(new Event('change')); }
+  }
+  await loadProfile();
+
+  // after players load, try load draft
+  setTimeout(()=> loadDraftForMatch(matchSelect.value), 400);
+
 })();
 </script>
 </body>

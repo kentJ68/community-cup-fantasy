@@ -80,6 +80,7 @@ const SCORESCREEN_DIR = path.join(UPLOAD_DIR, 'score-screens');
 
 const uploadAvatar = multer({ dest: AVATAR_DIR });
 const uploadTeamLogo = multer({ dest: TEAM_LOGO_DIR });
+const uploadLeagueLogo = multer({ dest: LEAGUE_LOGO_DIR });
 const uploadScoreScreenshot = multer({ dest: SCORESCREEN_DIR });
 const uploadAny = multer({ dest: UPLOAD_DIR });
 
@@ -119,30 +120,18 @@ function safeJsonParse(s) {
 // -----------------------
 // Robust startTime parser
 // -----------------------
-/**
- * parseStartTime(input)
- * - Accepts ISO (with/without timezone), common human formats,
- *   and gracefully handles semicolons like "7;30".
- * - If input has no timezone, defaults to Asia/Kolkata.
- * - Returns a JavaScript Date or null (if cannot parse).
- */
 function parseStartTime(input) {
   if (!input) return null;
-  // If it's already a Date
   if (input instanceof Date) {
     if (isNaN(input.getTime())) return null;
     return input;
   }
-  // Normalize strings
   let s = String(input).trim();
-  // Replace stray semicolons (e.g., "7;30") with colon
   s = s.replace(/;/g, ':');
-
-  // 1) Try strict ISO parsing (accepts timezone if present)
+  // Strict ISO
   let m = moment(s, moment.ISO_8601, true);
   if (m.isValid()) return m.toDate();
-
-  // 2) Try a list of common human-readable formats (assume Asia/Kolkata timezone)
+  // Common formats assume Asia/Kolkata if no tz
   const formats = [
     'D MMM YYYY h:mm A',
     'DD MMM YYYY h:mm A',
@@ -160,15 +149,10 @@ function parseStartTime(input) {
     m = moment.tz(s, f, 'Asia/Kolkata');
     if (m.isValid()) return m.toDate();
   }
-
-  // 3) If the string contains a timezone offset like "+05:30" or "Z", try loose parse
   m = moment(s);
   if (m.isValid()) return m.toDate();
-
-  // 4) As a last resort, try Date.parse
   const d = new Date(s);
   if (!isNaN(d.getTime())) return d;
-
   return null;
 }
 
@@ -460,14 +444,13 @@ app.get('/api/matches/:matchId/contests', async (req, res) => {
 });
 
 // --- Join contest ---
-// Patched: accept teamId OR viewerName. use transaction for atomic checks/insert.
+// Atomic checks + supports teamId or auth lookup
 app.post('/api/contests/:contestId/join', async (req, res) => {
   const session = await mongoose.startSession();
   try {
     const { contestId } = req.params;
     const { viewerName: bodyViewerName, teamId: bodyTeamId } = req.body || {};
 
-    // Load contest early
     const contest = await Contest.findById(contestId).lean();
     if (!contest) {
       await session.endSession();
@@ -489,7 +472,6 @@ app.post('/api/contests/:contestId/join', async (req, res) => {
       return res.status(400).json({ error: 'Contest closed — match already started' });
     }
 
-    // Determine team to join
     let team = null;
     let viewerName = bodyViewerName || null;
     const authHeader = (req.headers.authorization || '').split(' ');
@@ -500,9 +482,7 @@ app.post('/api/contests/:contestId/join', async (req, res) => {
       if (pl && pl.id) { authedUserId = String(pl.id); authedIsAdmin = pl.role === 'admin'; }
     }
 
-    // If client provided teamId, prefer that
     if (bodyTeamId) {
-      // require auth for teamId (must be owner or admin)
       if (!authedUserId) {
         await session.endSession();
         return res.status(401).json({ error: 'Authentication required to use teamId' });
@@ -516,14 +496,12 @@ app.post('/api/contests/:contestId/join', async (req, res) => {
         await session.endSession();
         return res.status(400).json({ error: 'Team does not belong to this match' });
       }
-      // only owner or admin can use teamId
       if (!authedIsAdmin && String(team.viewerId) !== String(authedUserId)) {
         await session.endSession();
         return res.status(403).json({ error: 'Not allowed to use this team' });
       }
       viewerName = team.viewerName || viewerName;
     } else {
-      // no teamId provided: try auth-based lookup, then fallback to viewerName
       if (authedUserId) {
         team = await Team.findOne({ matchId: contest.matchId, viewerId: String(authedUserId) }).lean();
         if (team) viewerName = team.viewerName || viewerName;
@@ -535,33 +513,27 @@ app.post('/api/contests/:contestId/join', async (req, res) => {
     }
 
     if (!team) {
-      // no team found; advise to create first
       await session.endSession();
       console.warn(`Join attempt failed: no team for viewer=${viewerName} match=${contest.matchId} (teamId provided? ${!!bodyTeamId})`);
       return res.status(400).json({ error: 'Create a team first' });
     }
 
-    // Now run atomic checks + insert inside transaction to avoid races (if the driver supports it)
     let entry = null;
     let created = false;
     await session.withTransaction(async () => {
-      // Re-fetch contest within session for up-to-date checks (optional)
       const contestFresh = await Contest.findById(contestId).session(session);
       if (!contestFresh) throw new Error('Contest disappeared');
 
-      // perViewerLimit check (use team.viewerName as authoritative viewer)
       const viewerCheckName = team.viewerName || viewerName || null;
       if (contestFresh.perViewerLimit && viewerCheckName) {
         const currentEntries = await TeamEntry.countDocuments({ contestId: contestFresh._id, viewerName: viewerCheckName }).session(session);
         if (currentEntries >= (contestFresh.perViewerLimit || 1)) {
-          // throw to abort transaction; we will catch outside and respond 400
           const e = new Error('Entry limit reached for viewer');
           e._code = 'PER_VIEWER_LIMIT';
           throw e;
         }
       }
 
-      // maxEntries check
       if (contestFresh.maxEntries) {
         const totalEntries = await TeamEntry.countDocuments({ contestId: contestFresh._id }).session(session);
         if (totalEntries >= contestFresh.maxEntries) {
@@ -571,7 +543,6 @@ app.post('/api/contests/:contestId/join', async (req, res) => {
         }
       }
 
-      // duplicate check by teamId
       const existing = await TeamEntry.findOne({ contestId: contestFresh._id, teamId: team._id }).session(session);
       if (existing) {
         const e = new Error('Duplicate team entry');
@@ -579,7 +550,6 @@ app.post('/api/contests/:contestId/join', async (req, res) => {
         throw e;
       }
 
-      // All good -> create entry
       entry = await TeamEntry.create([{
         matchId: contestFresh.matchId,
         contestId: contestFresh._id,
@@ -592,13 +562,10 @@ app.post('/api/contests/:contestId/join', async (req, res) => {
         createdAt: new Date()
       }], { session });
 
-      if (Array.isArray(entry) && entry.length) {
-        entry = entry[0];
-      }
+      if (Array.isArray(entry) && entry.length) entry = entry[0];
       created = true;
     }, { readConcern: { level: 'local' }, writeConcern: { w: 'majority' } });
 
-    // Emit socket update but don't let failures break the response
     try {
       io.to(`match_${String(contest.matchId)}`).emit('contestEntryUpdate', { contestId: String(contest._id), entryId: String(entry._id) });
     } catch (emitErr) {
@@ -608,11 +575,9 @@ app.post('/api/contests/:contestId/join', async (req, res) => {
     if (created) {
       return res.json({ ok: true, entry });
     } else {
-      // Fallback unlikely path
       return res.status(500).json({ error: 'Failed to create entry' });
     }
   } catch (err) {
-    // Map custom error codes thrown during transaction to HTTP responses
     if (err && err._code === 'PER_VIEWER_LIMIT') {
       return res.status(400).json({ error: 'Entry limit reached for viewer' });
     }
@@ -689,24 +654,64 @@ app.get('/api/matches/:matchId/teams/me', auth, async (req, res) => {
   }
 });
 
-app.delete('/api/matches/:matchId/teams/:teamId', auth, async (req, res) => {
+// Improved delete handler: accepts admin header or owner JWT (or admin JWT)
+app.delete('/api/matches/:matchId/teams/:teamId', async (req, res) => {
   try {
     const { matchId, teamId } = req.params;
-    const team = await Team.findById(teamId);
-    if (!team) return res.status(404).json({ ok: false, error: 'Team not found' });
-    if (String(team.matchId) !== String(matchId)) return res.status(400).json({ ok: false, error: 'Team does not belong to this match' });
+    console.log('DELETE request headers:', req.headers);
 
-    const userId = String(req.user.id);
-    const isAdmin = req.user && req.user.role === 'admin';
-    if (!isAdmin && String(team.viewerId) !== userId) return res.status(403).json({ ok: false, error: 'Not allowed' });
+    if (!matchId || !teamId) return res.status(400).json({ ok: false, error: 'Missing ids' });
+
+    const adminHeader = req.headers['x-admin-token'] || req.query.adminToken;
+    const isAdminViaHeader = (ADMIN_TOKEN && adminHeader && adminHeader === ADMIN_TOKEN);
+
+    let authedUser = null;
+    try {
+      const authHeader = (req.headers.authorization || '').split(' ');
+      if (authHeader.length === 2 && authHeader[0] === 'Bearer') {
+        const pl = verifyJwt(authHeader[1]);
+        if (pl && pl.id) authedUser = pl;
+      }
+    } catch (e) {
+      console.warn('JWT verify error:', e && e.message);
+    }
+
+    console.log('isAdminViaHeader=', isAdminViaHeader, 'authedUser=', authedUser && { id: authedUser.id, role: authedUser.role });
+
+    if (!isAdminViaHeader && !authedUser) {
+      console.warn('Delete blocked: no admin token and no JWT');
+      return res.status(401).json({ ok: false, error: 'Unauthorized: provide admin token or Bearer token' });
+    }
+
+    const team = await Team.findById(teamId);
+    if (!team) {
+      console.warn('Delete blocked: team not found', teamId);
+      return res.status(404).json({ ok: false, error: 'Team not found' });
+    }
+    if (String(team.matchId) !== String(matchId)) {
+      console.warn('Delete blocked: team.matchId mismatch', team.matchId, matchId);
+      return res.status(400).json({ ok: false, error: 'Team does not belong to this match' });
+    }
+
+    const requesterIsAdmin = isAdminViaHeader || (authedUser && authedUser.role === 'admin');
+    const requesterId = authedUser && authedUser.id ? String(authedUser.id) : null;
+
+    console.log('requesterIsAdmin=', requesterIsAdmin, 'requesterId=', requesterId, 'team.viewerId=', team.viewerId);
+
+    if (!requesterIsAdmin && String(team.viewerId) !== requesterId) {
+      console.warn('Delete blocked: not owner or admin');
+      return res.status(403).json({ ok: false, error: 'Forbidden: not owner or admin' });
+    }
 
     await Team.deleteOne({ _id: teamId });
     await TeamEntry.deleteMany({ teamId });
 
-    io.to(`match_${matchId}`).emit('teamDeleted', { matchId, teamId });
+    try { io.to(`match_${matchId}`).emit('teamDeleted', { matchId, teamId }); } catch (e) { console.warn('socket emit failed', e && e.message); }
+
+    console.log('Team deleted:', teamId, 'by', requesterIsAdmin ? 'admin' : requesterId);
     return res.json({ ok: true, message: 'Team deleted' });
   } catch (err) {
-    console.error('delete team error:', err && err.message);
+    console.error('delete team error:', err && (err.stack || err.message));
     return res.status(500).json({ ok: false, error: 'Failed to delete team' });
   }
 });
@@ -1122,6 +1127,50 @@ cron.schedule('* * * * *', async () => {
     }
   } catch (err) {
     console.error('Auto-close cron error:', err && err.message);
+  }
+});
+
+// --- League endpoints (seed/get) ---
+app.get('/api/league/teams', async (req, res) => {
+  try {
+    const teams = await LeagueTeam.find().sort({ shortName: 1 }).lean();
+    const normalized = (teams || []).map(t => ({
+      _id: t._id,
+      name: t.name || t.fullName || '',
+      shortName: t.shortName || '',
+      logo: t.logoUrl || t.logo || '',
+      players: t.players || [],
+      seasonPoints: t.seasonPoints || 0,
+      createdAt: t.createdAt || null
+    }));
+    return res.json({ ok: true, teams: normalized });
+  } catch (err) {
+    console.error('league teams error:', err && err.message);
+    return res.status(500).json({ ok: false, error: 'Failed to load league teams' });
+  }
+});
+
+app.post('/api/admin/league/seed', admin, async (req, res) => {
+  try {
+    const existing = await LeagueTeam.countDocuments();
+    if (existing > 0) return res.json({ ok: true, message: `Already seeded (${existing})` });
+
+    const seed = [
+      { name: 'Punjab De Sher', shortName: 'PDS', logoUrl: '/assets/league-logos/pds.png', players: [], seasonPoints: 0 },
+      { name: 'The Daredevils', shortName: 'DD', logoUrl: '/assets/league-logos/dd.png', players: [], seasonPoints: 0 },
+      { name: 'Lucknow Nawabs', shortName: 'LKN', logoUrl: '/assets/league-logos/lkn.png', players: [], seasonPoints: 0 },
+      { name: 'Punjab Warriors', shortName: 'PW', logoUrl: '/assets/league-logos/pw.png', players: [], seasonPoints: 0 },
+      { name: 'Assam Warriors', shortName: 'ASW', logoUrl: '/assets/league-logos/asw.png', players: [], seasonPoints: 0 },
+      { name: 'UP Yodhas', shortName: 'UPY', logoUrl: '/assets/league-logos/upy.png', players: [], seasonPoints: 0 },
+      { name: 'Astar Challengers', shortName: 'AC', logoUrl: '/assets/league-logos/ac.png', players: [], seasonPoints: 0 },
+      { name: 'The Unknowns', shortName: 'UNK', logoUrl: '/assets/league-logos/unk.png', players: [], seasonPoints: 0 }
+    ];
+
+    const created = await LeagueTeam.insertMany(seed);
+    return res.json({ ok: true, created: created.length, teams: created });
+  } catch (err) {
+    console.error('seed league teams error:', err && err.message);
+    return res.status(500).json({ ok: false, error: 'Seeding failed' });
   }
 });
 
