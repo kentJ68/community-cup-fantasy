@@ -80,7 +80,6 @@ const SCORESCREEN_DIR = path.join(UPLOAD_DIR, 'score-screens');
 
 const uploadAvatar = multer({ dest: AVATAR_DIR });
 const uploadTeamLogo = multer({ dest: TEAM_LOGO_DIR });
-const uploadLeagueLogo = multer({ dest: LEAGUE_LOGO_DIR });
 const uploadScoreScreenshot = multer({ dest: SCORESCREEN_DIR });
 const uploadAny = multer({ dest: UPLOAD_DIR });
 
@@ -115,6 +114,62 @@ function admin(req, res, next) {
 // small util
 function safeJsonParse(s) {
   try { return JSON.parse(s); } catch { return null; }
+}
+
+// -----------------------
+// Robust startTime parser
+// -----------------------
+/**
+ * parseStartTime(input)
+ * - Accepts ISO (with/without timezone), common human formats,
+ *   and gracefully handles semicolons like "7;30".
+ * - If input has no timezone, defaults to Asia/Kolkata.
+ * - Returns a JavaScript Date or null (if cannot parse).
+ */
+function parseStartTime(input) {
+  if (!input) return null;
+  // If it's already a Date
+  if (input instanceof Date) {
+    if (isNaN(input.getTime())) return null;
+    return input;
+  }
+  // Normalize strings
+  let s = String(input).trim();
+  // Replace stray semicolons (e.g., "7;30") with colon
+  s = s.replace(/;/g, ':');
+
+  // 1) Try strict ISO parsing (accepts timezone if present)
+  let m = moment(s, moment.ISO_8601, true);
+  if (m.isValid()) return m.toDate();
+
+  // 2) Try a list of common human-readable formats (assume Asia/Kolkata timezone)
+  const formats = [
+    'D MMM YYYY h:mm A',
+    'DD MMM YYYY h:mm A',
+    'D MMM YYYY H:mm',
+    'DD MMM YYYY H:mm',
+    'D-M-YYYY H:mm',
+    'DD-MM-YYYY H:mm',
+    'YYYY-MM-DD HH:mm',
+    'YYYY-MM-DD H:mm',
+    'DD MMM YYYY h:mmA',
+    'DD MMM YYYY, h:mm A',
+    'DD MMM YYYY hh:mm A'
+  ];
+  for (const f of formats) {
+    m = moment.tz(s, f, 'Asia/Kolkata');
+    if (m.isValid()) return m.toDate();
+  }
+
+  // 3) If the string contains a timezone offset like "+05:30" or "Z", try loose parse
+  m = moment(s);
+  if (m.isValid()) return m.toDate();
+
+  // 4) As a last resort, try Date.parse
+  const d = new Date(s);
+  if (!isNaN(d.getTime())) return d;
+
+  return null;
 }
 
 // --- AUTH: register/login ---
@@ -252,18 +307,9 @@ app.post('/api/admin/matches', admin, async (req, res) => {
 
     let startTimeToSave = null;
     if (startTime) {
-      // strict ISO first
-      let m = moment(startTime, moment.ISO_8601, true);
-      if (!m.isValid()) {
-        // try Asia/Kolkata parse
-        try {
-          m = moment.tz(startTime, 'Asia/Kolkata');
-        } catch (e) {
-          m = moment(startTime);
-        }
-      }
-      if (!m.isValid()) return res.status(400).json({ error: 'Invalid startTime format' });
-      startTimeToSave = m.toDate();
+      const parsed = parseStartTime(startTime);
+      if (!parsed) return res.status(400).json({ error: 'Invalid startTime format' });
+      startTimeToSave = parsed;
     }
 
     const match = await Match.create({ name, startTime: startTimeToSave, streamUrl, teamA, teamB, externalId });
@@ -1078,81 +1124,6 @@ cron.schedule('* * * * *', async () => {
     console.error('Auto-close cron error:', err && err.message);
   }
 });
-
-// --- League teams endpoints (UI expects /api/league/teams) ---
-/**
- * GET /api/league/teams
- * Returns list of league teams (requires nothing)
- */
-app.get('/api/league/teams', async (req, res) => {
-  try {
-    const teams = await LeagueTeam.find().sort({ shortName: 1 }).lean();
-    // normalize older records
-    const normalized = (teams || []).map(t => Object.assign({
-      _id: t._id,
-      name: t.name || t.fullName || '',
-      shortName: t.shortName || '',
-      logo: t.logo || t.logoUrl || t.image || '',
-      players: t.players || [],
-      seasonPoints: t.seasonPoints || 0
-    }, t));
-    return res.json({ ok: true, teams: normalized });
-  } catch (err) {
-    console.error('league teams error:', err && err.message);
-    return res.status(500).json({ ok: false, error: 'Failed to load league teams' });
-  }
-});
-
-/**
- * Debug fallback used by UI if /api/league/teams missing.
- * Public and returns same payload shape.
- */
-app.get('/api/debug/league-teams', async (req, res) => {
-  try {
-    const teams = await LeagueTeam.find().sort({ shortName: 1 }).lean();
-    const normalized = (teams || []).map(t => ({
-      _id: t._id,
-      name: t.name || t.fullName || '',
-      shortName: t.shortName || '',
-      logo: t.logo || t.logoUrl || t.image || '',
-      players: t.players || [],
-      seasonPoints: t.seasonPoints || 0
-    }));
-    return res.json({ ok: true, teams: normalized });
-  } catch (err) {
-    console.error('debug league teams error:', err && err.message);
-    return res.status(500).json({ ok: false, error: 'Failed to load debug league teams' });
-  }
-});
-
-/**
- * Admin-only: seed default 8 teams if collection empty.
- * POST /api/admin/league/seed
- */
-app.post('/api/admin/league/seed', admin, async (req, res) => {
-  try {
-    const existing = await LeagueTeam.countDocuments();
-    if (existing > 0) return res.json({ ok: true, message: `Already seeded (${existing})` });
-
-    const seed = [
-      { name: 'Punjab De Sher', shortName: 'PDS', logo: '/assets/league-logos/pds.png', players: [], seasonPoints: 0 },
-      { name: 'The Daredevils', shortName: 'DD', logo: '/assets/league-logos/dd.png', players: [], seasonPoints: 0 },
-      { name: 'Lucknow Nawabs', shortName: 'LN', logo: '/assets/league-logos/ln.png', players: [], seasonPoints: 0 },
-      { name: 'Punjab Warriors', shortName: 'PW', logo: '/assets/league-logos/pw.png', players: [], seasonPoints: 0 },
-      { name: 'Assam Warriors', shortName: 'AW', logo: '/assets/league-logos/aw.png', players: [], seasonPoints: 0 },
-      { name: 'UP Yodhas', shortName: 'UPY', logo: '/assets/league-logos/upy.png', players: [], seasonPoints: 0 },
-      { name: 'Astar Challengers', shortName: 'AC', logo: '/assets/league-logos/ac.png', players: [], seasonPoints: 0 },
-      { name: 'The Unknowns', shortName: 'UNK', logo: '/assets/league-logos/unk.png', players: [], seasonPoints: 0 }
-    ];
-
-    const created = await LeagueTeam.insertMany(seed);
-    return res.json({ ok: true, created: created.length, teams: created });
-  } catch (err) {
-    console.error('seed league teams error:', err && err.message);
-    return res.status(500).json({ ok: false, error: 'Seeding failed' });
-  }
-});
-
 
 // --- Health, uploads, server start ---
 app.get('/api/health', (req, res) => res.json({ ok: true, time: new Date() }));
