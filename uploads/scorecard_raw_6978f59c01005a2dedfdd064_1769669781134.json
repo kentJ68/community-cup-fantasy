@@ -1,0 +1,100 @@
+{
+  "provider": "example",
+  "raw": {
+    "stats": [
+      {
+        "playerName": "Matthew Wade",
+        "runs": 62,
+        "balls": 24,
+        "fours": 6,
+        "sixes": 4,
+        "isOut": false,
+        "mvp": true
+      },
+      {
+        "playerName": "Quinton de Kock",
+        "runs": 50,
+        "balls": 22,
+        "isOut": true
+      },
+      {
+        "playerName": "Jason Roy",
+        "runs": 36,
+        "balls": 7,
+        "isOut": false
+      },
+      {
+        "playerName": "Marnus Labuschagne",
+        "runs": 19,
+        "balls": 8,
+        "isOut": true
+      },
+      {
+        "playerName": "Mitchell Marsh",
+        "runs": 56,
+        "balls": 26,
+        "isOut": false
+      },
+      {
+        "playerName": "Babar Azam",
+        "runs": 55,
+        "balls": 23,
+        "isOut": true
+      },
+      {
+        "playerName": "Dawid Malan",
+        "runs": 29,
+        "balls": 10,
+        "isOut": true
+      },
+      {
+        "playerName": "Harry Brook",
+        "runs": 8,
+        "balls": 2,
+        "isOut": false
+      },
+      {
+        "playerName": "Rahul Chahar",
+        "overs": 2,
+        "runsConceded": 37,
+        "wickets": 2
+      },
+      {
+        "playerName": "Sam Curran",
+        "overs": 2,
+        "runsConceded": 27,
+        "wickets": 1
+      },
+      {
+        "playerName": "Hasan Ali",
+        "overs": 2,
+        "runsConceded": 18,
+        "wickets": 0
+      },
+      {
+        "playerName": "Tim Southee",
+        "overs": 2,
+        "runsConceded": 34,
+        "wickets": 0
+      },
+      {
+        "playerName": "Shaheen Shah Afridi",
+        "overs": 2,
+        "runsConceded": 39,
+        "wickets": 0
+      },
+      {
+        "playerName": "Mark Wood",
+        "overs": 2,
+        "runsConceded": 30,
+        "wickets": 0
+      },
+      {
+        "playerName": "Yuzvendra Chahal",
+        "overs": 2,
+        "runsConceded": 27,
+        "wickets": 0
+      }
+    ]
+  }
+}

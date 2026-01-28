@@ -1,0 +1,47 @@
+{
+  "provider": "example",
+  "raw": {
+    "stats": [
+      {
+        "playerName": "Matthew Wade",
+        "runs": 62
+      },
+      {
+        "playerName": "Quinton de Kock",
+        "runs": 50
+      },
+      {
+        "playerName": "Jason Roy",
+        "runs": 36
+      },
+      {
+        "playerName": "Marnus Labuschagne",
+        "runs": 19
+      },
+      {
+        "playerName": "Mitch Marsh",
+        "runs": 56
+      },
+      {
+        "playerName": "Babar Azam",
+        "runs": 55
+      },
+      {
+        "playerName": "Dawid Malan",
+        "runs": 29
+      },
+      {
+        "playerName": "Harry Brook",
+        "runs": 8
+      },
+      {
+        "playerName": "Rahul Chahar",
+        "wickets": 2
+      },
+      {
+        "playerName": "Sam Curran",
+        "wickets": 1
+      }
+    ]
+  }
+}

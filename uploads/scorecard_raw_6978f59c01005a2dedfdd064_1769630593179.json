@@ -1,0 +1,17 @@
+{
+  "provider": "example",
+  "raw": {
+    "raw": {
+      "stats": [
+        {
+          "playerName": "Matthew Wade",
+          "runs": 62
+        },
+        {
+          "playerName": "Rahul Chahar",
+          "wickets": 2
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,175 @@
+{
+  "provider": "example",
+  "raw": {
+    "match": {
+      "tournament": "Community Cup – Season 2",
+      "format": "T10",
+      "venue": "Daren Sammy Cricket Ground",
+      "teams": {
+        "teamA": "LoneRangers",
+        "teamB": "Royal Knights"
+      },
+      "result": {
+        "winner": "LoneRangers",
+        "method": "won by 5 wickets",
+        "playerOfMatch": "Alex Hales"
+      }
+    },
+    "innings": [
+      {
+        "team": "Royal Knights",
+        "runs": 152,
+        "wickets": 1,
+        "overs": 10,
+        "extras": {
+          "wide": 1,
+          "noBall": 1,
+          "bye": 0,
+          "legBye": 0,
+          "total": 2
+        },
+        "batting": [
+          {
+            "player": "Alex Hales",
+            "runs": 89,
+            "balls": 38,
+            "status": "out"
+          },
+          {
+            "player": "Zak Crawley",
+            "runs": 38,
+            "balls": 17,
+            "status": "not out"
+          },
+          {
+            "player": "Heinrich Klaasen",
+            "runs": 23,
+            "balls": 6,
+            "status": "not out"
+          }
+        ],
+        "bowling": [
+          {
+            "player": "Mustafizur Rahman",
+            "overs": 2,
+            "runs": 34,
+            "wickets": 1
+          },
+          {
+            "player": "Gus Atkinson",
+            "overs": 2,
+            "runs": 19,
+            "wickets": 0
+          },
+          {
+            "player": "Krunal Pandya",
+            "overs": 2,
+            "runs": 19,
+            "wickets": 0
+          },
+          {
+            "player": "Brydon Carse",
+            "overs": 2,
+            "runs": 22,
+            "wickets": 0
+          }
+        ]
+      },
+      {
+        "team": "LoneRangers",
+        "runs": 156,
+        "wickets": 5,
+        "overs": 9.5,
+        "extras": {
+          "wide": 1,
+          "noBall": 1,
+          "bye": 0,
+          "legBye": 0,
+          "total": 2
+        },
+        "batting": [
+          {
+            "player": "Jos Buttler",
+            "runs": 0,
+            "balls": 1,
+            "status": "out"
+          },
+          {
+            "player": "Finn Allen",
+            "runs": 39,
+            "balls": 17,
+            "status": "run out"
+          },
+          {
+            "player": "Cooper Connolly",
+            "runs": 28,
+            "balls": 14,
+            "status": "out"
+          },
+          {
+            "player": "Mohammad Rizwan",
+            "runs": 47,
+            "balls": 17,
+            "status": "not out"
+          },
+          {
+            "player": "Shimron Hetmyer",
+            "runs": 0,
+            "balls": 0,
+            "status": "run out"
+          },
+          {
+            "player": "Krunal Pandya",
+            "runs": 16,
+            "balls": 7,
+            "status": "out"
+          },
+          {
+            "player": "Gus Atkinson",
+            "runs": 24,
+            "balls": 4,
+            "status": "not out"
+          }
+        ],
+        "bowling": [
+          {
+            "player": "Ben Stokes",
+            "overs": 1,
+            "runs": 19,
+            "wickets": 1
+          },
+          {
+            "player": "Sikandar Raza",
+            "overs": 0.5,
+            "runs": 25,
+            "wickets": 0
+          },
+          {
+            "player": "Chris Woakes",
+            "overs": 2,
+            "runs": 25,
+            "wickets": 1
+          },
+          {
+            "player": "Adam Milne",
+            "overs": 2,
+            "runs": 37,
+            "wickets": 0
+          },
+          {
+            "player": "Nathan Lyon",
+            "overs": 2,
+            "runs": 22,
+            "wickets": 1
+          },
+          {
+            "player": "T Natarajan",
+            "overs": 2,
+            "runs": 28,
+            "wickets": 0
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,241 @@
+{
+  "provider": "example",
+  "raw": {
+    "match": {
+      "teams": [
+        "Lunar Wulfs",
+        "Preet Fighters"
+      ],
+      "format": "T10",
+      "venue": "Wanderers Stadium (SA20)",
+      "result": "Lunar Wulfs won by 19 runs",
+      "playerOfTheMatch": "Matthew Wade"
+    },
+    "stats": [
+      {
+        "playerName": "Matthew Wade",
+        "team": "Lunar Wulfs",
+        "runs": 62,
+        "balls": 24,
+        "fours": 0,
+        "sixes": 0,
+        "wickets": 0,
+        "overs": 0,
+        "maidens": 0,
+        "catches": 0,
+        "mvp": true
+      },
+      {
+        "playerName": "Quinton de Kock",
+        "team": "Lunar Wulfs",
+        "runs": 50,
+        "balls": 22,
+        "fours": 0,
+        "sixes": 0,
+        "wickets": 0,
+        "overs": 0,
+        "maidens": 0,
+        "catches": 0,
+        "mvp": false
+      },
+      {
+        "playerName": "Jason Roy",
+        "team": "Lunar Wulfs",
+        "runs": 36,
+        "balls": 7,
+        "fours": 0,
+        "sixes": 0,
+        "wickets": 0,
+        "overs": 0,
+        "maidens": 0,
+        "catches": 0,
+        "mvp": false
+      },
+      {
+        "playerName": "Marnus Labuschagne",
+        "team": "Lunar Wulfs",
+        "runs": 19,
+        "balls": 8,
+        "fours": 0,
+        "sixes": 0,
+        "wickets": 0,
+        "overs": 0,
+        "maidens": 0,
+        "catches": 0,
+        "mvp": false
+      },
+      {
+        "playerName": "Sam Curran",
+        "team": "Lunar Wulfs",
+        "runs": 0,
+        "balls": 0,
+        "wickets": 1,
+        "overs": 2,
+        "maidens": 0,
+        "runsConceded": 27,
+        "economy": 13.5,
+        "mvp": false
+      },
+      {
+        "playerName": "Jofra Archer",
+        "team": "Lunar Wulfs",
+        "runs": 0,
+        "balls": 0,
+        "wickets": 0,
+        "overs": 2,
+        "maidens": 0,
+        "runsConceded": 24,
+        "economy": 12,
+        "mvp": false
+      },
+      {
+        "playerName": "Mark Wood",
+        "team": "Lunar Wulfs",
+        "runs": 0,
+        "balls": 0,
+        "wickets": 0,
+        "overs": 2,
+        "maidens": 0,
+        "runsConceded": 30,
+        "economy": 15,
+        "mvp": false
+      },
+      {
+        "playerName": "Anrich Nortje",
+        "team": "Lunar Wulfs",
+        "runs": 0,
+        "balls": 0,
+        "wickets": 0,
+        "overs": 2,
+        "maidens": 0,
+        "runsConceded": 41,
+        "economy": 20.5,
+        "mvp": false
+      },
+      {
+        "playerName": "Yuzvendra Chahal",
+        "team": "Lunar Wulfs",
+        "runs": 0,
+        "balls": 0,
+        "wickets": 0,
+        "overs": 2,
+        "maidens": 0,
+        "runsConceded": 27,
+        "economy": 13.5,
+        "mvp": false
+      },
+      {
+        "playerName": "Mitch Marsh",
+        "team": "Preet Fighters",
+        "runs": 56,
+        "balls": 26,
+        "fours": 0,
+        "sixes": 0,
+        "wickets": 0,
+        "overs": 0,
+        "maidens": 0,
+        "catches": 0,
+        "mvp": false
+      },
+      {
+        "playerName": "Babar Azam",
+        "team": "Preet Fighters",
+        "runs": 55,
+        "balls": 23,
+        "fours": 0,
+        "sixes": 0,
+        "wickets": 0,
+        "overs": 0,
+        "maidens": 0,
+        "catches": 0,
+        "mvp": false
+      },
+      {
+        "playerName": "Dawid Malan",
+        "team": "Preet Fighters",
+        "runs": 29,
+        "balls": 10,
+        "fours": 0,
+        "sixes": 0,
+        "wickets": 0,
+        "overs": 0,
+        "maidens": 0,
+        "catches": 0,
+        "mvp": false
+      },
+      {
+        "playerName": "Harry Brook",
+        "team": "Preet Fighters",
+        "runs": 8,
+        "balls": 2,
+        "fours": 0,
+        "sixes": 0,
+        "wickets": 0,
+        "overs": 0,
+        "maidens": 0,
+        "catches": 0,
+        "mvp": false
+      },
+      {
+        "playerName": "Rahul Chahar",
+        "team": "Preet Fighters",
+        "runs": 0,
+        "balls": 0,
+        "wickets": 2,
+        "overs": 2,
+        "maidens": 0,
+        "runsConceded": 37,
+        "economy": 18.5,
+        "mvp": false
+      },
+      {
+        "playerName": "Hasan Ali",
+        "team": "Preet Fighters",
+        "runs": 0,
+        "balls": 0,
+        "wickets": 0,
+        "overs": 2,
+        "maidens": 0,
+        "runsConceded": 18,
+        "economy": 9,
+        "mvp": false
+      },
+      {
+        "playerName": "Tim Southee",
+        "team": "Preet Fighters",
+        "runs": 0,
+        "balls": 0,
+        "wickets": 0,
+        "overs": 2,
+        "maidens": 0,
+        "runsConceded": 34,
+        "economy": 17,
+        "mvp": false
+      },
+      {
+        "playerName": "Shaheen Shah Afridi",
+        "team": "Preet Fighters",
+        "runs": 0,
+        "balls": 0,
+        "wickets": 0,
+        "overs": 2,
+        "maidens": 0,
+        "runsConceded": 39,
+        "economy": 19.5,
+        "mvp": false
+      },
+      {
+        "playerName": "Arshdeep Singh",
+        "team": "Preet Fighters",
+        "runs": 0,
+        "balls": 0,
+        "wickets": 0,
+        "overs": 2,
+        "maidens": 0,
+        "runsConceded": 40,
+        "economy": 20,
+        "mvp": false
+      }
+    ]
+  }
+}

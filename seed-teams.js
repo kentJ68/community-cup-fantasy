@@ -22,8 +22,8 @@ const teams = [
     shortName: "LR",
     group: "A",
     logoUrl: "/assets/league-logos/lr.png",
-    seasonPoints: 0,
-     nrr: -3.500,
+    seasonPoints: 2,
+     nrr: -1.433,
     players: [
       { playerName: "Jos Buttler", role: "WK" },
       { playerName: "Shimron Hetmyer", role: "BAT" },
@@ -169,7 +169,7 @@ const teams = [
     shortName: "PS",
     group: "B",
     logoUrl: "/assets/league-logos/ps.png",
-    seasonPoints: 2,
+    seasonPoints: 4,
      nrr: 4.274,
     players: [
       { playerName: "Steve Smith", role: "BAT" },
@@ -269,7 +269,7 @@ const teams = [
     group: "C",
     logoUrl: "/assets/league-logos/rk.png",
     seasonPoints: 2,
-     nrr: -0.409,
+     nrr: -0.502,
     players: [
       { playerName: "Heinrich Klaasen", role: "WK" },
       { playerName: "Sikandar Raza", role: "ALL" },
@@ -319,7 +319,7 @@ const teams = [
     group: "D",
     logoUrl: "/assets/league-logos/kh.png",
     seasonPoints: 2,
-     nrr: -0.397,
+    nrr: -0.397,
     players: [
       { playerName: "Shai Hope", role: "WK" },
       { playerName: "Kane Williamson", role: "BAT" },
@@ -343,7 +343,7 @@ const teams = [
     group: "D",
     logoUrl: "/assets/league-logos/kl.png",
     seasonPoints: 0,
-     nrr: -2.687,
+    nrr: -2.687,
     players: [
       { playerName: "Travis Head", role: "BAT" },
       { playerName: "Pat Cummins", role: "ALL" },
@@ -367,7 +367,7 @@ const teams = [
     group: "D",
     logoUrl: "/assets/league-logos/pf.png",
     seasonPoints: 2,
-     nrr: 4.500,
+    nrr: 1.300,
     players: [
       { playerName: "Harry Brook", role: "BAT" },
       { playerName: "Babar Azam", role: "BAT" },
@@ -390,8 +390,8 @@ const teams = [
     shortName: "LW",
     group: "D",
     logoUrl: "/assets/league-logos/lw.png",
-    seasonPoints: 2,
-     nrr: 1.500,
+    seasonPoints: 4,
+    nrr: 1.700,
     players: [
       { playerName: "Quinton de Kock", role: "WK" },
       { playerName: "Jason Roy", role: "BAT" },

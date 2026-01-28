@@ -1,0 +1,167 @@
+{
+  "provider": "example",
+  "raw": {
+    "stats": [
+      {
+        "playerName": "Matthew Wade",
+        "runs": 62,
+        "fours": 0,
+        "sixes": 0,
+        "wickets": 0,
+        "maidens": 0,
+        "catches": 0,
+        "mvp": true
+      },
+      {
+        "playerName": "Quinton de Kock",
+        "runs": 50,
+        "fours": 0,
+        "sixes": 0,
+        "wickets": 0,
+        "maidens": 0,
+        "catches": 0,
+        "mvp": false
+      },
+      {
+        "playerName": "Jason Roy",
+        "runs": 36,
+        "fours": 0,
+        "sixes": 0,
+        "wickets": 0,
+        "maidens": 0,
+        "catches": 0,
+        "mvp": false
+      },
+      {
+        "playerName": "Marnus Labuschagne",
+        "runs": 19,
+        "fours": 0,
+        "sixes": 0,
+        "wickets": 0,
+        "maidens": 0,
+        "catches": 0,
+        "mvp": false
+      },
+      {
+        "playerName": "Mitch Marsh",
+        "runs": 56,
+        "fours": 0,
+        "sixes": 0,
+        "wickets": 0,
+        "maidens": 0,
+        "catches": 0,
+        "mvp": false
+      },
+      {
+        "playerName": "Babar Azam",
+        "runs": 55,
+        "fours": 0,
+        "sixes": 0,
+        "wickets": 0,
+        "maidens": 0,
+        "catches": 0,
+        "mvp": false
+      },
+      {
+        "playerName": "Dawid Malan",
+        "runs": 29,
+        "fours": 0,
+        "sixes": 0,
+        "wickets": 0,
+        "maidens": 0,
+        "catches": 1,
+        "mvp": false
+      },
+      {
+        "playerName": "Harry Brook",
+        "runs": 8,
+        "fours": 0,
+        "sixes": 0,
+        "wickets": 0,
+        "maidens": 0,
+        "catches": 0,
+        "mvp": false
+      },
+      {
+        "playerName": "Sam Curran",
+        "runs": 0,
+        "wickets": 1,
+        "maidens": 0,
+        "catches": 0,
+        "mvp": false
+      },
+      {
+        "playerName": "Jofra Archer",
+        "runs": 0,
+        "wickets": 0,
+        "maidens": 0,
+        "catches": 0,
+        "mvp": false
+      },
+      {
+        "playerName": "Mark Wood",
+        "runs": 0,
+        "wickets": 0,
+        "maidens": 0,
+        "catches": 0,
+        "mvp": false
+      },
+      {
+        "playerName": "Anrich Nortje",
+        "runs": 0,
+        "wickets": 0,
+        "maidens": 0,
+        "catches": 0,
+        "mvp": false
+      },
+      {
+        "playerName": "Yuzvendra Chahal",
+        "runs": 0,
+        "wickets": 0,
+        "maidens": 0,
+        "catches": 0,
+        "mvp": false
+      },
+      {
+        "playerName": "Rahul Chahar",
+        "runs": 0,
+        "wickets": 2,
+        "maidens": 0,
+        "catches": 0,
+        "mvp": false
+      },
+      {
+        "playerName": "Hasan Ali",
+        "runs": 0,
+        "wickets": 0,
+        "maidens": 0,
+        "catches": 0,
+        "mvp": false
+      },
+      {
+        "playerName": "Tim Southee",
+        "runs": 0,
+        "wickets": 0,
+        "maidens": 0,
+        "catches": 0,
+        "mvp": false
+      },
+      {
+        "playerName": "Arshdeep Singh",
+        "runs": 0,
+        "wickets": 0,
+        "maidens": 0,
+        "catches": 0,
+        "mvp": false
+      },
+      {
+        "playerName": "Shaheen Shah Afridi",
+        "runs": 0,
+        "wickets": 0,
+        "maidens": 0,
+        "catches": 0,
+        "mvp": false
+      }
+    ]
+  }
+}

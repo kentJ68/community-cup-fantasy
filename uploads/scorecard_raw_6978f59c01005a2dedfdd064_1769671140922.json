@@ -1,0 +1,13 @@
+{
+  "provider": "example",
+  "raw": {
+    "stats": [
+      {
+        "playerName": "Virat Kohli",
+        "runs": 52,
+        "fours": 6,
+        "sixes": 2
+      }
+    ]
+  }
+}

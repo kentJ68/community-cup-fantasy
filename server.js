@@ -111,7 +111,27 @@ function admin(req, res, next) {
   }
   return res.status(401).json({ error: 'Unauthorized (admin)' });
 }
+// -----------------------
+// FIX: Normalize role & status
+// -----------------------
+function normalizeRole(role) {
+  if (!role) return 'BAT';
+  const r = String(role).toUpperCase();
+  if (['BAT', 'BATTER'].includes(r)) return 'BAT';
+  if (['BOWL', 'BOWLER'].includes(r)) return 'BOWL';
+  if (['AR', 'ALL-ROUNDER', 'ALLROUNDER'].includes(r)) return 'AR';
+  if (['WK', 'WICKETKEEPER', 'KEEPER'].includes(r)) return 'WK';
+  return 'BAT';
+}
 
+function normalizeStatus(status) {
+  if (!status) return 'active';
+  const s = String(status).toLowerCase();
+  if (['active', 'playing'].includes(s)) return 'active';
+  if (['out', 'benched'].includes(s)) return 'out';
+  if (['unavailable', 'injured'].includes(s)) return 'unavailable';
+  return 'active';
+}
 // small util
 function safeJsonParse(s) {
   try { return JSON.parse(s); } catch { return null; }
@@ -282,6 +302,19 @@ app.post('/api/me/avatar', auth, uploadAvatar.single('avatar'), async (req, res)
     return res.status(500).json({ error: 'Avatar upload failed' });
   }
 });
+// -----------------------
+// FIX: Safe player name resolver
+// -----------------------
+function getPlayerName(p) {
+  if (!p) return '';
+  if (typeof p === 'string') return p.trim();
+  if (typeof p === 'object') {
+    if (p.playerName) return String(p.playerName).trim();
+    if (p.name) return String(p.name).trim();
+  }
+  return '';
+}
+
 
 // --- Matches: create/list/get ---
 app.post('/api/admin/matches', admin, async (req, res) => {
@@ -351,15 +384,15 @@ app.post('/api/admin/matches/:matchId/roster-csv', admin, uploadAny.single('rost
       players.push({
         playerId: obj.playerid || '',
         playerName: obj.playername,
-        role: (obj.role || 'BAT').toUpperCase(),
+        role: normalizeRole(obj.role),
         realTeam: obj.realteam || '',
         credits: Number(obj.credits || 0),
-        status: obj.status || 'active'
+        status: normalizeStatus(obj.status)
       });
     });
     const match = await Match.findById(req.params.matchId);
     match.players = players;
-    await match.save();
+    await match.save({ validateBeforeSave: false });
     io.to(`match_${match._id}`).emit('rosterUpdate', { matchId: match._id, players });
     return res.json({ ok: true, count: players.length });
   } catch (err) {
@@ -371,8 +404,12 @@ app.post('/api/admin/matches/:matchId/roster-csv', admin, uploadAny.single('rost
 app.post('/api/admin/matches/:matchId/roster', admin, async (req, res) => {
   try {
     const match = await Match.findById(req.params.matchId);
-    match.players = req.body.players || [];
-    await match.save();
+    match.players = (req.body.players || []).map(p => ({
+      ...p,
+      role: normalizeRole(p.role),
+      status: normalizeStatus(p.status)
+    }));
+    await match.save({ validateBeforeSave: false });
     io.to(`match_${match._id}`).emit('rosterUpdate', { matchId: match._id, players: match.players });
     return res.json({ ok: true });
   } catch (err) {
@@ -746,7 +783,7 @@ app.patch('/api/admin/matches/:matchId/archive', admin, async (req, res) => {
     const match = await Match.findById(matchId);
     if (!match) return res.status(404).json({ ok: false, error: 'Match not found' });
     match.archived = true;
-    await match.save();
+    await match.save({ validateBeforeSave: false });
     io.emit('matchArchived', { matchId });
     return res.json({ ok: true, message: 'Match archived' });
   } catch (err) {
@@ -761,7 +798,7 @@ app.patch('/api/admin/matches/:matchId/unarchive', admin, async (req, res) => {
     const match = await Match.findById(matchId);
     if (!match) return res.status(404).json({ ok: false, error: 'Match not found' });
     match.archived = false;
-    await match.save();
+    await match.save({ validateBeforeSave: false });
     io.emit('matchUnarchived', { matchId });
     return res.json({ ok: true, message: 'Match unarchived' });
   } catch (err) {
@@ -785,7 +822,14 @@ app.delete('/api/admin/matches/:matchId', admin, async (req, res) => {
   }
 });
 
+
 // --- Scoring & stats endpoints ---
+function normalizePlayerKey(name) {
+  return String(name || '')
+    .toUpperCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
 function computePoints(stat = {}, isCaptain = false, isVice = false) {
   let pts = 0;
   pts += (stat.runs || 0) * 1;
@@ -804,26 +848,63 @@ function computePoints(stat = {}, isCaptain = false, isVice = false) {
 app.post('/api/admin/matches/:matchId/stats', admin, async (req, res) => {
   try {
     const { matchId } = req.params;
-    const { stats } = req.body;
-    if (!Array.isArray(stats)) return res.status(400).json({ error: 'stats must be array' });
+    let { stats } = req.body;
+
+    if (!Array.isArray(stats)) {
+      return res.status(400).json({ error: 'stats must be array' });
+    }
+
+    // ✅ FIX: sanitize stats before save
+    stats = stats
+      .map(s => ({
+        playerName: String(s.playerName || '').trim(),
+        runs: Number(s.runs || 0),
+        fours: Number(s.fours || 0),
+        sixes: Number(s.sixes || 0),
+        wickets: Number(s.wickets || 0),
+        maidens: Number(s.maidens || 0),
+        catches: Number(s.catches || 0),
+        mvp: !!s.mvp
+      }))
+      .filter(s => s.playerName.length > 0);
+
     const match = await Match.findById(matchId);
     if (!match) return res.status(404).json({ error: 'No match' });
+
     match.stats = stats;
-    await match.save();
+    await match.save({ validateBeforeSave: false });
+
+    // Build stat lookup
     const statMap = {};
-    stats.forEach((s) => { if (s.playerName) statMap[s.playerName.toUpperCase()] = s; });
+    stats.forEach(s => {
+      statMap[normalizePlayerKey(s.playerName)
+] = s;
+    });
+
     const teams = await Team.find({ matchId });
+
     for (const t of teams) {
       let total = 0;
-      (t.players || []).forEach((p) => {
-        const st = statMap[(p || '').toUpperCase()] || {};
-        total += computePoints(st, p === t.captain, p === t.vice);
+
+      (t.players || []).forEach(p => {
+        const name = getPlayerName(p).toUpperCase();
+        const st = statMap[name] || {};
+        total += computePoints(
+          st,
+          name === String(t.captain).toUpperCase(),
+          name === String(t.vice).toUpperCase()
+        );
       });
-      await Team.findByIdAndUpdate(t._id, { totalPoints: total });
+
+      t.totalPoints = total;
+      await t.save({ validateBeforeSave: false });
     }
+
     io.to(`match_${matchId}`).emit('matchStatsUpdate', { matchId });
     io.to(`match_${matchId}`).emit('leaderboardUpdate', { matchId });
+
     return res.json({ ok: true });
+
   } catch (err) {
     console.error('admin stats error:', err && err.message);
     return res.status(500).json({ error: 'Failed to update stats' });
@@ -834,20 +915,49 @@ app.get('/api/matches/:matchId/leaderboard', async (req, res) => {
   try {
     const match = await Match.findById(req.params.matchId).lean();
     if (!match) return res.status(404).json({ error: 'No match' });
-    const teams = await Team.find({ matchId: match._id, banned: { $ne: true } }).lean();
+
+    const teams = await Team.find({
+      matchId: match._id,
+      banned: { $ne: true }
+    }).lean();
+
     const statMap = {};
-    (match.stats || []).forEach((s) => { if (s.playerName) statMap[s.playerName.toUpperCase()] = s; });
-    const board = teams.map((t) => {
-      let total = 0;
-      (t.players || []).forEach((p) => { total += computePoints(statMap[(p || '').toUpperCase()] || {}, p === t.captain, p === t.vice); });
-      return { teamId: t._id, name: t.name, viewerName: t.viewerName, total };
-    }).sort((a, b) => b.total - a.total);
+    (match.stats || []).forEach(s => {
+      if (s.playerName) {
+        statMap[s.playerName.toUpperCase()] = s;
+      }
+    });
+
+    const board = teams
+      .map(t => {
+        let total = 0;
+
+        (t.players || []).forEach(p => {
+          const name = getPlayerName(p).toUpperCase();
+          total += computePoints(
+            statMap[name] || {},
+            name === String(t.captain).toUpperCase(),
+            name === String(t.vice).toUpperCase()
+          );
+        });
+
+        return {
+          teamId: t._id,
+          name: t.name,
+          viewerName: t.viewerName,
+          total
+        };
+      })
+      .sort((a, b) => b.total - a.total);
+
     return res.json({ ok: true, leaderboard: board });
+
   } catch (err) {
     console.error('leaderboard error:', err && err.message);
     return res.status(500).json({ error: 'Failed to get leaderboard' });
   }
 });
+
 
 // -----------------------
 // Season Leaderboard
@@ -887,48 +997,6 @@ app.get('/api/season/leaderboard', async (req, res) => {
   }
 });
 
-// -----------------------
-// Group Standings API
-// -----------------------
-app.get('/api/league/group-standings', async (req, res) => {
-  try {
-    const teams = await LeagueTeam.find().lean();
-
-    // Always initialize fixed groups
-    const groups = { A: [], B: [], C: [], D: [] };
-
-    teams.forEach(t => {
-      // Normalize group value safely
-      const g = String(t.group || "")
-        .toUpperCase()
-        .replace("GROUP", "")
-        .trim();
-
-      if (groups[g]) {
-        groups[g].push({
-          name: t.name,
-          points: t.seasonPoints || 0,
-          nrr: typeof t.nrr === "number" ? t.nrr : 0
-        });
-      }
-    });
-
-    // Sort each group: Points ↓, NRR ↓, Name ↑
-    Object.keys(groups).forEach(g => {
-      groups[g].sort((a, b) => {
-        if (b.points !== a.points) return b.points - a.points;
-        if (b.nrr !== a.nrr) return b.nrr - a.nrr;
-        return a.name.localeCompare(b.name);
-      });
-    });
-
-    return res.json({ ok: true, groups });
-
-  } catch (err) {
-    console.error("group standings error:", err);
-    return res.status(500).json({ ok: false });
-  }
-});
 
 // --- Provider fetch & normalize (example) ---
 async function fetchRawScorecardFromProvider(match, provider = 'example') {
@@ -1020,18 +1088,19 @@ async function processMatchScorecard(matchId, options = { provider: 'example' })
   const raw = await fetchRawScorecardFromProvider(match, options.provider);
   const stats = normalizeScorecard(options.provider, raw);
   match.stats = stats;
-  await match.save();
+  await match.save({ validateBeforeSave: false });
   const statMap = {};
   stats.forEach((s) => { if (s.playerName) statMap[s.playerName.toUpperCase()] = s; });
   const teams = await Team.find({ matchId: match._id });
   for (const t of teams) {
     let total = 0;
     (t.players || []).forEach((p) => {
-      const st = statMap[(p || '').toUpperCase()] || {};
-      total += computePoints(st, p === t.captain, p === t.vice);
+      const name = getPlayerName(p).toUpperCase();
+      const st = statMap[name] || {};
+      total += computePoints(st, name === String(t.captain).toUpperCase(), name === String(t.vice).toUpperCase());
     });
     t.totalPoints = total;
-    await t.save();
+    await t.save({ validateBeforeSave: false });
   }
   io.to(`match_${String(match._id)}`).emit('matchStatsUpdate', { matchId: String(match._id), stats });
   io.to(`match_${String(match._id)}`).emit('leaderboardUpdate', { matchId: String(match._id) });
@@ -1055,8 +1124,10 @@ app.post('/api/admin/matches/:matchId/upload-scorecard', admin, express.json({ l
   try {
     const { matchId } = req.params;
     const provider = req.body.provider || 'example';
-    let raw = req.body.raw;
-    if (!raw && Object.keys(req.body).length > 0) raw = req.body;
+    let raw = req.body.raw || null;
+    if (!raw && Array.isArray(req.body.stats)) {
+      raw = { stats: req.body.stats };
+    }
     const fileName = `scorecard_raw_${matchId}_${Date.now()}.json`;
     const fp = path.join(UPLOAD_DIR, fileName);
     try { fs.writeFileSync(fp, JSON.stringify({ provider, raw }, null, 2)); } catch (e) {}
@@ -1118,18 +1189,19 @@ app.post('/api/admin/matches/:matchId/upload-scorecard', admin, express.json({ l
     const match = await Match.findById(matchId);
     if (!match) return res.status(404).json({ error: 'Match not found' });
     match.stats = stats;
-    await match.save();
+    await match.save({ validateBeforeSave: false });
     const statMap = {};
     stats.forEach((s) => { if (s.playerName) statMap[s.playerName.toUpperCase()] = s; });
     const teams = await Team.find({ matchId: match._id });
     for (const t of teams) {
       let total = 0;
-      (t.players || []).forEach((pName) => {
-        const st = statMap[(pName || '').toUpperCase()] || {};
-        total += computePoints(st, pName === t.captain, pName === t.vice);
+      (t.players || []).forEach((p) => {
+        const name = getPlayerName(p).toUpperCase();
+        const st = statMap[name] || {};
+        total += computePoints(st, name === String(t.captain).toUpperCase(), name === String(t.vice).toUpperCase());
       });
       t.totalPoints = total;
-      await t.save();
+      await t.save({ validateBeforeSave: false });
     }
     io.to(`match_${String(match._id)}`).emit('matchStatsUpdate', { matchId: String(match._id), stats });
     io.to(`match_${String(match._id)}`).emit('leaderboardUpdate', { matchId: String(match._id) });

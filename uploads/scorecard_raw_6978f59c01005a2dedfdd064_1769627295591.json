@@ -1,0 +1,194 @@
+{
+  "provider": "example",
+  "raw": {
+    "match": {
+      "teams": [
+        "Lonerangers",
+        "Royal Knights"
+      ],
+      "format": "T10",
+      "venue": "Daren Sammy Cricket Ground",
+      "result": "Lonerangers won by 5 wickets",
+      "playerOfTheMatch": "Alex Hales"
+    },
+    "stats": [
+      {
+        "playerName": "Alex Hales",
+        "team": "Royal Knights",
+        "runs": 89,
+        "balls": 38,
+        "fours": 0,
+        "sixes": 0,
+        "wickets": 0,
+        "overs": 0,
+        "maidens": 0,
+        "catches": 0,
+        "mvp": true
+      },
+      {
+        "playerName": "Zak Crawley",
+        "team": "Royal Knights",
+        "runs": 38,
+        "balls": 17,
+        "fours": 0,
+        "sixes": 0,
+        "wickets": 0,
+        "overs": 0,
+        "maidens": 0,
+        "catches": 0,
+        "mvp": false
+      },
+      {
+        "playerName": "Heinrich Klaasen",
+        "team": "Royal Knights",
+        "runs": 23,
+        "balls": 6,
+        "fours": 0,
+        "sixes": 0,
+        "wickets": 0,
+        "overs": 0,
+        "maidens": 0,
+        "catches": 1,
+        "mvp": false
+      },
+      {
+        "playerName": "Ben Stokes",
+        "team": "Royal Knights",
+        "runs": 0,
+        "balls": 0,
+        "wickets": 1,
+        "overs": 1,
+        "maidens": 0,
+        "runsConceded": 19,
+        "economy": 19,
+        "mvp": false
+      },
+      {
+        "playerName": "Chris Woakes",
+        "team": "Royal Knights",
+        "runs": 0,
+        "balls": 0,
+        "wickets": 1,
+        "overs": 2,
+        "maidens": 0,
+        "runsConceded": 25,
+        "economy": 12.5,
+        "mvp": false
+      },
+      {
+        "playerName": "Nathan Lyon",
+        "team": "Royal Knights",
+        "runs": 0,
+        "balls": 0,
+        "wickets": 1,
+        "overs": 2,
+        "maidens": 0,
+        "runsConceded": 22,
+        "economy": 11,
+        "mvp": false
+      },
+      {
+        "playerName": "Adam Milne",
+        "team": "Royal Knights",
+        "runs": 0,
+        "balls": 0,
+        "wickets": 0,
+        "overs": 2,
+        "maidens": 0,
+        "runsConceded": 37,
+        "economy": 18.5,
+        "mvp": false
+      },
+      {
+        "playerName": "T Natarajan",
+        "team": "Royal Knights",
+        "runs": 0,
+        "balls": 0,
+        "wickets": 0,
+        "overs": 2,
+        "maidens": 0,
+        "runsConceded": 28,
+        "economy": 14,
+        "mvp": false
+      },
+      {
+        "playerName": "Mohammad Rizwan",
+        "team": "Lonerangers",
+        "runs": 47,
+        "balls": 17,
+        "fours": 0,
+        "sixes": 0,
+        "wickets": 0,
+        "overs": 0,
+        "maidens": 0,
+        "catches": 0,
+        "mvp": false
+      },
+      {
+        "playerName": "Finn Allen",
+        "team": "Lonerangers",
+        "runs": 39,
+        "balls": 17,
+        "fours": 0,
+        "sixes": 0,
+        "wickets": 0,
+        "overs": 0,
+        "maidens": 0,
+        "catches": 0,
+        "mvp": false
+      },
+      {
+        "playerName": "Cooper Connolly",
+        "team": "Lonerangers",
+        "runs": 28,
+        "balls": 14,
+        "fours": 0,
+        "sixes": 0,
+        "wickets": 0,
+        "overs": 1,
+        "maidens": 0,
+        "runsConceded": 23,
+        "economy": 23,
+        "mvp": false
+      },
+      {
+        "playerName": "Gus Atkinson",
+        "team": "Lonerangers",
+        "runs": 24,
+        "balls": 4,
+        "fours": 0,
+        "sixes": 0,
+        "wickets": 0,
+        "overs": 2,
+        "maidens": 0,
+        "runsConceded": 19,
+        "economy": 9.5,
+        "mvp": false
+      },
+      {
+        "playerName": "Mustafizur Rahman",
+        "team": "Lonerangers",
+        "runs": 0,
+        "balls": 0,
+        "wickets": 1,
+        "overs": 2,
+        "maidens": 0,
+        "runsConceded": 34,
+        "economy": 17,
+        "mvp": false
+      },
+      {
+        "playerName": "Lockie Ferguson",
+        "team": "Lonerangers",
+        "runs": 0,
+        "balls": 0,
+        "wickets": 0,
+        "overs": 2,
+        "maidens": 0,
+        "runsConceded": 35,
+        "economy": 17.5,
+        "mvp": false
+      }
+    ]
+  }
+}

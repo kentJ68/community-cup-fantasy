@@ -1,0 +1,36 @@
+{
+  "provider": "example",
+  "raw": {
+    "stats": [
+      {
+        "playerName": "Matthew Wade",
+        "runs": 62,
+        "fours": 6,
+        "sixes": 2,
+        "wickets": 0,
+        "maidens": 0,
+        "catches": 0,
+        "mvp": true
+      },
+      {
+        "playerName": "Jason Roy",
+        "runs": 36,
+        "fours": 4,
+        "sixes": 3,
+        "wickets": 0
+      },
+      {
+        "playerName": "Rahul Chahar",
+        "runs": 0,
+        "wickets": 2,
+        "maidens": 0,
+        "catches": 0
+      },
+      {
+        "playerName": "Sam Curran",
+        "runs": 0,
+        "wickets": 1
+      }
+    ]
+  }
+}

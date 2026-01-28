@@ -1,0 +1,155 @@
+{
+  "provider": "example",
+  "raw": {
+    "match": {
+      "format": "T10",
+      "venue": "Wanderers Stadium (SA20)",
+      "teams": [
+        "Lunar Wulfs",
+        "Preet Fighters"
+      ],
+      "result": "Lunar Wulfs won by 19 runs",
+      "playerOfMatch": "Matthew Wade"
+    },
+    "innings": [
+      {
+        "team": "Lunar Wulfs",
+        "score": "168/2",
+        "overs": 10,
+        "batting": [
+          {
+            "playerName": "Matthew Wade",
+            "runs": 62,
+            "balls": 24,
+            "out": false,
+            "fours": 6,
+            "sixes": 4
+          },
+          {
+            "playerName": "Quinton de Kock",
+            "runs": 50,
+            "balls": 22,
+            "out": true
+          },
+          {
+            "playerName": "Jason Roy",
+            "runs": 36,
+            "balls": 7,
+            "out": false
+          },
+          {
+            "playerName": "Marnus Labuschagne",
+            "runs": 19,
+            "balls": 8,
+            "out": true
+          }
+        ],
+        "bowlingAgainst": [
+          {
+            "playerName": "Rahul Chahar",
+            "overs": 2,
+            "maidens": 0,
+            "runsConceded": 37,
+            "wickets": 2
+          },
+          {
+            "playerName": "Hasan Ali",
+            "overs": 2,
+            "maidens": 0,
+            "runsConceded": 18,
+            "wickets": 0
+          },
+          {
+            "playerName": "Tim Southee",
+            "overs": 2,
+            "maidens": 0,
+            "runsConceded": 34,
+            "wickets": 0
+          },
+          {
+            "playerName": "Shaheen Shah Afridi",
+            "overs": 2,
+            "maidens": 0,
+            "runsConceded": 39,
+            "wickets": 0
+          },
+          {
+            "playerName": "Mark Wood",
+            "overs": 2,
+            "maidens": 0,
+            "runsConceded": 30,
+            "wickets": 0
+          }
+        ]
+      },
+      {
+        "team": "Preet Fighters",
+        "score": "149/2",
+        "overs": 10,
+        "batting": [
+          {
+            "playerName": "Mitchell Marsh",
+            "runs": 56,
+            "balls": 26,
+            "out": false
+          },
+          {
+            "playerName": "Babar Azam",
+            "runs": 55,
+            "balls": 23,
+            "out": true
+          },
+          {
+            "playerName": "Dawid Malan",
+            "runs": 29,
+            "balls": 10,
+            "out": true
+          },
+          {
+            "playerName": "Harry Brook",
+            "runs": 8,
+            "balls": 2,
+            "out": false
+          }
+        ],
+        "bowlingAgainst": [
+          {
+            "playerName": "Sam Curran",
+            "overs": 2,
+            "maidens": 0,
+            "runsConceded": 27,
+            "wickets": 1
+          },
+          {
+            "playerName": "Jofra Archer",
+            "overs": 2,
+            "maidens": 0,
+            "runsConceded": 24,
+            "wickets": 0
+          },
+          {
+            "playerName": "Mark Wood",
+            "overs": 2,
+            "maidens": 0,
+            "runsConceded": 30,
+            "wickets": 0
+          },
+          {
+            "playerName": "Anrich Nortje",
+            "overs": 2,
+            "maidens": 0,
+            "runsConceded": 41,
+            "wickets": 0
+          },
+          {
+            "playerName": "Yuzvendra Chahal",
+            "overs": 2,
+            "maidens": 0,
+            "runsConceded": 27,
+            "wickets": 0
+          }
+        ]
+      }
+    ]
+  }
+}
