@@ -886,6 +886,93 @@ app.get('/api/season/leaderboard', async (req, res) => {
     return res.status(500).json({ ok: false, error: 'Failed to load season leaderboard' });
   }
 });
+// -----------------------
+// Season Badges Logic
+// -----------------------
+app.get('/api/season/badges', async (req, res) => {
+  try {
+    const teams = await Team.find({ banned: { $ne: true } }).lean();
+    const matches = await Match.find().lean();
+
+    const badges = [];
+    const byViewer = {};
+
+    // Group teams by viewer
+    teams.forEach(t => {
+      if (!byViewer[t.viewerName]) byViewer[t.viewerName] = [];
+      byViewer[t.viewerName].push(t);
+    });
+
+    // 1️⃣ Participation Badge
+    Object.keys(byViewer).forEach(v => {
+      badges.push({
+        type: "Participant",
+        viewerName: v
+      });
+    });
+
+    // 2️⃣ Century Club (100+ points in a match)
+    teams.forEach(t => {
+      if (t.totalPoints >= 100) {
+        badges.push({
+          type: "Century Club",
+          viewerName: t.viewerName,
+          matchId: t.matchId
+        });
+      }
+    });
+
+    // 3️⃣ Top Scorer per Match
+    for (const m of matches) {
+      const matchTeams = teams.filter(t => String(t.matchId) === String(m._id));
+      if (!matchTeams.length) continue;
+
+      const top = matchTeams.reduce((a, b) =>
+        (b.totalPoints || 0) > (a.totalPoints || 0) ? b : a
+      );
+
+      badges.push({
+        type: "Top Scorer",
+        viewerName: top.viewerName,
+        matchName: m.name
+      });
+    }
+
+    // 4️⃣ Consistent Performer (3+ matches, avg >= 80)
+    Object.entries(byViewer).forEach(([viewer, list]) => {
+      if (list.length >= 3) {
+        const avg =
+          list.reduce((s, t) => s + (t.totalPoints || 0), 0) / list.length;
+        if (avg >= 80) {
+          badges.push({
+            type: "Consistent Performer",
+            viewerName: viewer
+          });
+        }
+      }
+    });
+
+    // 5️⃣ Season Leader
+    const season = Object.entries(byViewer).map(([viewer, list]) => ({
+      viewer,
+      total: list.reduce((s, t) => s + (t.totalPoints || 0), 0)
+    }));
+
+    if (season.length) {
+      const leader = season.sort((a, b) => b.total - a.total)[0];
+      badges.push({
+        type: "Season Leader",
+        viewerName: leader.viewer
+      });
+    }
+
+    return res.json({ ok: true, badges });
+
+  } catch (err) {
+    console.error("badges error:", err.message);
+    res.status(500).json({ ok: false, error: "Failed to load badges" });
+  }
+});
 
 
 // --- Provider fetch & normalize (example) ---

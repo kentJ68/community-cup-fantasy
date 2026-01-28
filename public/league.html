@@ -16,27 +16,9 @@
     .player-list { margin-top:10px; border-top:1px dashed rgba(255,255,255,0.06); padding-top:10px; display:none; }
     .player-item { padding:6px 0; display:flex; justify-content:space-between; border-bottom:1px solid rgba(255,255,255,0.03); }
     .player-item:last-child { border-bottom:none; }
-
-    .group-title {
-      font-size:1.1rem;
-      font-weight:800;
-      margin:18px 0 8px;
-      letter-spacing:0.5px;
-    }
-
-    .stand-row {
-      display:flex;
-      justify-content:space-between;
-      padding:8px;
-      border-radius:8px;
-      background:var(--card);
-      margin-bottom:8px;
-      align-items:center;
-    }
-
-    @media (max-width:900px) {
-      .teams-grid { grid-template-columns: 1fr; }
-    }
+    .group-title { font-size:1.1rem; font-weight:800; margin:18px 0 8px; }
+    .stand-row { display:flex; justify-content:space-between; padding:8px; border-radius:8px; background:var(--card); margin-bottom:8px; }
+    @media (max-width:900px){ .teams-grid { grid-template-columns:1fr; } }
   </style>
 </head>
 
@@ -46,11 +28,10 @@
 
 <main class="main">
   <h2>Community Cup — Season 2</h2>
-  <p class="muted">
-    16 teams • 4 groups • Click a team to view squad details
-  </p>
+  <p class="muted">16 teams • 4 groups • Click a team to view squad details</p>
 
   <section class="card">
+
     <div class="controls" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
       <input id="searchBox" class="input" placeholder="Search team or player..." style="flex:1;min-width:180px;">
       <select id="roleFilter" class="input" style="width:140px;">
@@ -64,12 +45,10 @@
     </div>
 
     <div style="display:flex;gap:18px;flex-wrap:wrap;">
-      <!-- LEFT -->
       <div style="flex:2;min-width:280px;">
         <div id="groupsContainer"></div>
       </div>
 
-      <!-- RIGHT -->
       <aside style="flex:1;min-width:240px;">
         <div class="card">
           <h3>Overall Standings</h3>
@@ -77,6 +56,7 @@
         </div>
       </aside>
     </div>
+
   </section>
 </main>
 </div>
@@ -91,6 +71,8 @@ const GROUPS = {
 
 let TEAMS = [];
 
+const normalize = s => String(s||"").trim().toUpperCase();
+
 async function apiGet(url){
   const r = await fetch(url);
   return r.json();
@@ -100,12 +82,6 @@ function logo(team){
   return team.logoUrl || team.logo || "/assets/logo.png";
 }
 
-function escape(s){
-  return String(s||"").replace(/[&<>"']/g,m=>({
-    "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"
-  }[m]));
-}
-
 function renderGroups(){
   const q = searchBox.value.toLowerCase();
   const role = roleFilter.value;
@@ -113,7 +89,9 @@ function renderGroups(){
   wrap.innerHTML = "";
 
   for (const [group, names] of Object.entries(GROUPS)) {
-    const teams = TEAMS.filter(t => names.includes(t.name))
+    const wanted = names.map(normalize);
+
+    const teams = TEAMS.filter(t => wanted.includes(normalize(t.name)))
       .filter(t => {
         if (role && !(t.players||[]).some(p => p.role === role)) return false;
         if (!q) return true;
@@ -121,20 +99,17 @@ function renderGroups(){
         return s.includes(q);
       });
 
-    if (!teams.length) continue;
-
     wrap.innerHTML += `
       <div class="group-title">${group}</div>
       <div class="teams-grid">
-        ${teams.map(team => `
+        ${teams.length ? teams.map(team => `
           <div class="team-card card">
-            <img class="team-logo" src="${logo(team)}"
-              onerror="this.src='/assets/logo.png'">
+            <img class="team-logo" src="${logo(team)}" onerror="this.src='/assets/logo.png'">
             <div class="team-meta">
               <div style="display:flex;justify-content:space-between;">
                 <div>
-                  <div class="team-name">${escape(team.name)}</div>
-                  <div class="team-short">${escape(team.shortName||"")}</div>
+                  <div class="team-name">${team.name}</div>
+                  <div class="team-short">${team.shortName||""}</div>
                 </div>
                 <div style="font-weight:700">${team.seasonPoints||0} pts</div>
               </div>
@@ -142,14 +117,14 @@ function renderGroups(){
               <div class="player-list">
                 ${(team.players||[]).map(p=>`
                   <div class="player-item">
-                    <span>${escape(p.playerName)}</span>
-                    <span class="muted small">${escape(p.role||"")}</span>
+                    <span>${p.playerName}</span>
+                    <span class="muted small">${p.role||""}</span>
                   </div>
                 `).join("")}
               </div>
             </div>
           </div>
-        `).join("")}
+        `).join("") : `<div class="muted">Teams not loaded yet</div>`}
       </div>
     `;
   }
@@ -171,7 +146,7 @@ function renderStandings(){
   const sorted = [...TEAMS].sort((a,b)=>(b.seasonPoints||0)-(a.seasonPoints||0));
   box.innerHTML = sorted.map((t,i)=>`
     <div class="stand-row">
-      <div>${i+1}. ${escape(t.name)}</div>
+      <div>${i+1}. ${t.name}</div>
       <div><strong>${t.seasonPoints||0}</strong></div>
     </div>
   `).join("");
