@@ -147,15 +147,27 @@ function renderGroups(){
 
   renderStandings();
 }
-
 // ---------------- OVERALL ----------------
 function renderStandings(){
   const box = document.getElementById("standings");
-  const sorted = [...TEAMS].sort((a,b)=>(b.seasonPoints||0)-(a.seasonPoints||0));
-  box.innerHTML = sorted.map((t,i)=>`
+
+  const sorted = [...TEAMS].sort((a, b) => {
+    const pDiff = (b.seasonPoints || 0) - (a.seasonPoints || 0);
+    if (pDiff !== 0) return pDiff;
+
+    const nrrDiff = (b.nrr || 0) - (a.nrr || 0);
+    if (nrrDiff !== 0) return nrrDiff;
+
+    return (a.name || "").localeCompare(b.name || "");
+  });
+
+  box.innerHTML = sorted.map((t, i) => `
     <div class="stand-row">
-      <div>${i+1}. ${t.name}</div>
-      <div><strong>${t.seasonPoints||0}</strong></div>
+      <div>${i + 1}. ${t.name}</div>
+      <div style="text-align:right;">
+        <div><strong>${t.seasonPoints || 0}</strong> pts</div>
+        <div class="muted small">NRR ${Number(t.nrr || 0).toFixed(2)}</div>
+      </div>
     </div>
   `).join("");
 }

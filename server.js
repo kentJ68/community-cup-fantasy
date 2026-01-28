@@ -1258,32 +1258,28 @@ app.get('/api/league/group-standings', async (req, res) => {
 });
 
 // --- League endpoints (seed/get) ---
-// --- League endpoints (get teams) ---
 app.get('/api/league/teams', async (req, res) => {
   try {
     const teams = await LeagueTeam.find().sort({ shortName: 1 }).lean();
 
     const normalized = (teams || []).map(t => ({
       _id: t._id,
-      name: t.name || t.fullName || '',
+      name: t.name || '',
       shortName: t.shortName || '',
       logo: t.logoUrl || t.logo || '',
       players: t.players || [],
-      seasonPoints: t.seasonPoints || 0,
-      nrr: typeof t.nrr === "number" ? t.nrr : 0,   // ✅ FIXED
-      group: t.group || null,                       // ✅ FIXED
+      seasonPoints: Number(t.seasonPoints || 0),
+      nrr: typeof t.nrr === "number" ? t.nrr : 0,   // ✅ FIX
+      group: t.group || null,                       // ✅ FIX
       createdAt: t.createdAt || null
     }));
 
     return res.json({ ok: true, teams: normalized });
-
   } catch (err) {
     console.error('league teams error:', err && err.message);
     return res.status(500).json({ ok: false, error: 'Failed to load league teams' });
   }
 });
-
-
 
 // --- Health, uploads, server start ---
 app.get('/api/health', (req, res) => res.json({ ok: true, time: new Date() }));
