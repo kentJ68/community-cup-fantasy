@@ -886,94 +886,49 @@ app.get('/api/season/leaderboard', async (req, res) => {
     return res.status(500).json({ ok: false, error: 'Failed to load season leaderboard' });
   }
 });
+
 // -----------------------
-// Season Badges Logic
+// Group Standings API
 // -----------------------
-app.get('/api/season/badges', async (req, res) => {
+app.get('/api/league/group-standings', async (req, res) => {
   try {
-    const teams = await Team.find({ banned: { $ne: true } }).lean();
-    const matches = await Match.find().lean();
+    const teams = await LeagueTeam.find().lean();
 
-    const badges = [];
-    const byViewer = {};
+    // Always initialize fixed groups
+    const groups = { A: [], B: [], C: [], D: [] };
 
-    // Group teams by viewer
     teams.forEach(t => {
-      if (!byViewer[t.viewerName]) byViewer[t.viewerName] = [];
-      byViewer[t.viewerName].push(t);
-    });
+      // Normalize group value safely
+      const g = String(t.group || "")
+        .toUpperCase()
+        .replace("GROUP", "")
+        .trim();
 
-    // 1️⃣ Participation Badge
-    Object.keys(byViewer).forEach(v => {
-      badges.push({
-        type: "Participant",
-        viewerName: v
-      });
-    });
-
-    // 2️⃣ Century Club (100+ points in a match)
-    teams.forEach(t => {
-      if (t.totalPoints >= 100) {
-        badges.push({
-          type: "Century Club",
-          viewerName: t.viewerName,
-          matchId: t.matchId
+      if (groups[g]) {
+        groups[g].push({
+          name: t.name,
+          points: t.seasonPoints || 0,
+          nrr: typeof t.nrr === "number" ? t.nrr : 0
         });
       }
     });
 
-    // 3️⃣ Top Scorer per Match
-    for (const m of matches) {
-      const matchTeams = teams.filter(t => String(t.matchId) === String(m._id));
-      if (!matchTeams.length) continue;
-
-      const top = matchTeams.reduce((a, b) =>
-        (b.totalPoints || 0) > (a.totalPoints || 0) ? b : a
-      );
-
-      badges.push({
-        type: "Top Scorer",
-        viewerName: top.viewerName,
-        matchName: m.name
+    // Sort each group: Points ↓, NRR ↓, Name ↑
+    Object.keys(groups).forEach(g => {
+      groups[g].sort((a, b) => {
+        if (b.points !== a.points) return b.points - a.points;
+        if (b.nrr !== a.nrr) return b.nrr - a.nrr;
+        return a.name.localeCompare(b.name);
       });
-    }
-
-    // 4️⃣ Consistent Performer (3+ matches, avg >= 80)
-    Object.entries(byViewer).forEach(([viewer, list]) => {
-      if (list.length >= 3) {
-        const avg =
-          list.reduce((s, t) => s + (t.totalPoints || 0), 0) / list.length;
-        if (avg >= 80) {
-          badges.push({
-            type: "Consistent Performer",
-            viewerName: viewer
-          });
-        }
-      }
     });
 
-    // 5️⃣ Season Leader
-    const season = Object.entries(byViewer).map(([viewer, list]) => ({
-      viewer,
-      total: list.reduce((s, t) => s + (t.totalPoints || 0), 0)
-    }));
-
-    if (season.length) {
-      const leader = season.sort((a, b) => b.total - a.total)[0];
-      badges.push({
-        type: "Season Leader",
-        viewerName: leader.viewer
-      });
-    }
-
-    return res.json({ ok: true, badges });
+    return res.json({ ok: true, groups });
 
   } catch (err) {
-    console.error("badges error:", err.message);
-    res.status(500).json({ ok: false, error: "Failed to load badges" });
+    console.error("group standings error:", err);
+    return res.status(500).json({ ok: false });
   }
 });
-
 
 // --- Provider fetch & normalize (example) ---
 async function fetchRawScorecardFromProvider(match, provider = 'example') {
@@ -1256,10 +1211,58 @@ cron.schedule('* * * * *', async () => {
   }
 });
 
+// -----------------------
+// Group Standings API (FIXED)
+// -----------------------
+app.get('/api/league/group-standings', async (req, res) => {
+  try {
+    const teams = await LeagueTeam.find().lean();
+
+    const groups = { A: [], B: [], C: [], D: [] };
+
+    teams.forEach(t => {
+      if (!t.group) return;
+
+      // Normalize group safely
+      let g = String(t.group).toUpperCase().trim();
+
+      // Accept: "A", "GROUP A", "Group A"
+      if (g.startsWith("GROUP")) {
+        g = g.replace("GROUP", "").trim();
+      }
+
+      if (groups[g]) {
+        groups[g].push({
+          name: t.name,
+          points: t.seasonPoints || 0,
+          nrr: typeof t.nrr === "number" ? t.nrr : 0
+        });
+      }
+    });
+
+    // Sort: Points ↓, NRR ↓, Name ↑
+    Object.keys(groups).forEach(g => {
+      groups[g].sort((a, b) => {
+        if (b.points !== a.points) return b.points - a.points;
+        if (b.nrr !== a.nrr) return b.nrr - a.nrr;
+        return a.name.localeCompare(b.name);
+      });
+    });
+
+    return res.json({ ok: true, groups });
+
+  } catch (err) {
+    console.error("group standings error:", err);
+    return res.status(500).json({ ok: false });
+  }
+});
+
 // --- League endpoints (seed/get) ---
+// --- League endpoints (get teams) ---
 app.get('/api/league/teams', async (req, res) => {
   try {
     const teams = await LeagueTeam.find().sort({ shortName: 1 }).lean();
+
     const normalized = (teams || []).map(t => ({
       _id: t._id,
       name: t.name || t.fullName || '',
@@ -1267,38 +1270,20 @@ app.get('/api/league/teams', async (req, res) => {
       logo: t.logoUrl || t.logo || '',
       players: t.players || [],
       seasonPoints: t.seasonPoints || 0,
+      nrr: typeof t.nrr === "number" ? t.nrr : 0,   // ✅ FIXED
+      group: t.group || null,                       // ✅ FIXED
       createdAt: t.createdAt || null
     }));
+
     return res.json({ ok: true, teams: normalized });
+
   } catch (err) {
     console.error('league teams error:', err && err.message);
     return res.status(500).json({ ok: false, error: 'Failed to load league teams' });
   }
 });
 
-app.post('/api/admin/league/seed', admin, async (req, res) => {
-  try {
-    const existing = await LeagueTeam.countDocuments();
-    if (existing > 0) return res.json({ ok: true, message: `Already seeded (${existing})` });
 
-    const seed = [
-      { name: 'Punjab De Sher', shortName: 'PDS', logoUrl: '/assets/league-logos/pds.png', players: [], seasonPoints: 0 },
-      { name: 'The Daredevils', shortName: 'DD', logoUrl: '/assets/league-logos/dd.png', players: [], seasonPoints: 0 },
-      { name: 'Lucknow Nawabs', shortName: 'LKN', logoUrl: '/assets/league-logos/lkn.png', players: [], seasonPoints: 0 },
-      { name: 'Punjab Warriors', shortName: 'PW', logoUrl: '/assets/league-logos/pw.png', players: [], seasonPoints: 0 },
-      { name: 'Assam Warriors', shortName: 'ASW', logoUrl: '/assets/league-logos/asw.png', players: [], seasonPoints: 0 },
-      { name: 'UP Yodhas', shortName: 'UPY', logoUrl: '/assets/league-logos/upy.png', players: [], seasonPoints: 0 },
-      { name: 'Astar Challengers', shortName: 'AC', logoUrl: '/assets/league-logos/ac.png', players: [], seasonPoints: 0 },
-      { name: 'The Unknowns', shortName: 'UNK', logoUrl: '/assets/league-logos/unk.png', players: [], seasonPoints: 0 }
-    ];
-
-    const created = await LeagueTeam.insertMany(seed);
-    return res.json({ ok: true, created: created.length, teams: created });
-  } catch (err) {
-    console.error('seed league teams error:', err && err.message);
-    return res.status(500).json({ ok: false, error: 'Seeding failed' });
-  }
-});
 
 // --- Health, uploads, server start ---
 app.get('/api/health', (req, res) => res.json({ ok: true, time: new Date() }));

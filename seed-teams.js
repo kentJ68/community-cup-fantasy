@@ -23,6 +23,7 @@ const teams = [
     group: "A",
     logoUrl: "/assets/league-logos/lr.png",
     seasonPoints: 0,
+     nrr: -3.500,
     players: [
       { playerName: "Jos Buttler", role: "WK" },
       { playerName: "Shimron Hetmyer", role: "BAT" },
@@ -45,7 +46,8 @@ const teams = [
     shortName: "WN",
     group: "A",
     logoUrl: "/assets/league-logos/wn.png",
-    seasonPoints: 0,
+    seasonPoints: 2,
+     nrr: 0.400,
     players: [
       { playerName: "David Warner", role: "BAT" },
       { playerName: "Rinku Singh", role: "BAT" },
@@ -69,6 +71,7 @@ const teams = [
     group: "A",
     logoUrl: "/assets/league-logos/or.png",
     seasonPoints: 0,
+     nrr: -1.200,
     players: [
       { playerName: "Suryakumar Yadav", role: "BAT" },
       { playerName: "Virat Kohli", role: "BAT" },
@@ -91,7 +94,8 @@ const teams = [
     shortName: "KV",
     group: "A",
     logoUrl: "/assets/league-logos/kv.png",
-    seasonPoints: 0,
+    seasonPoints: 4,
+     nrr: 1.950,
     players: [
       { playerName: "Alex Carey", role: "WK" },
       { playerName: "Trent Boult", role: "BWL" },
@@ -117,7 +121,8 @@ const teams = [
     shortName: "UPW",
     group: "B",
     logoUrl: "/assets/league-logos/upw.png",
-    seasonPoints: 0,
+    seasonPoints: 2,
+     nrr: -0.738,
     players: [
       { playerName: "Usman Khawaja", role: "BAT" },
       { playerName: "David Miller", role: "BAT" },
@@ -140,7 +145,8 @@ const teams = [
     shortName: "HB",
     group: "B",
     logoUrl: "/assets/league-logos/hb.png",
-    seasonPoints: 0,
+    seasonPoints: 2,
+     nrr: -1.402,
     players: [
       { playerName: "Jasprit Bumrah", role: "BWL" },
       { playerName: "Nicholas Pooran", role: "WK" },
@@ -163,7 +169,8 @@ const teams = [
     shortName: "PS",
     group: "B",
     logoUrl: "/assets/league-logos/ps.png",
-    seasonPoints: 0,
+    seasonPoints: 2,
+     nrr: 4.274,
     players: [
       { playerName: "Steve Smith", role: "BAT" },
       { playerName: "Ishan Kishan", role: "WK" },
@@ -187,6 +194,7 @@ const teams = [
     group: "B",
     logoUrl: "/assets/league-logos/kxi.png",
     seasonPoints: 0,
+     nrr: -2.098,
     players: [
       { playerName: "Mohammad Nabi", role: "ALL" },
       { playerName: "Ish Sodhi", role: "BWL" },
@@ -212,7 +220,8 @@ const teams = [
     shortName: "PDS",
     group: "C",
     logoUrl: "/assets/league-logos/pds.png",
-    seasonPoints: 0,
+    seasonPoints: 2,
+     nrr: 0.700,
     players: [
       { playerName: "Kyle Jamieson", role: "ALL" },
       { playerName: "Matt Henry", role: "BWL" },
@@ -235,7 +244,8 @@ const teams = [
     shortName: "AG",
     group: "C",
     logoUrl: "/assets/league-logos/ag.png",
-    seasonPoints: 0,
+    seasonPoints: 2,
+     nrr: 0.545,
     players: [
       { playerName: "Sanju Samson", role: "WK" },
       { playerName: "James Anderson", role: "BWL" },
@@ -258,7 +268,8 @@ const teams = [
     shortName: "RK",
     group: "C",
     logoUrl: "/assets/league-logos/rk.png",
-    seasonPoints: 0,
+    seasonPoints: 2,
+     nrr: -0.409,
     players: [
       { playerName: "Heinrich Klaasen", role: "WK" },
       { playerName: "Sikandar Raza", role: "ALL" },
@@ -281,7 +292,8 @@ const teams = [
     shortName: "TWK",
     group: "C",
     logoUrl: "/assets/league-logos/twk.png",
-    seasonPoints: 0,
+    seasonPoints: 2,
+     nrr: -0.850,
     players: [
       { playerName: "Dewald Brevis", role: "BAT" },
       { playerName: "Bhuvneshwar Kumar", role: "BWL" },
@@ -306,7 +318,8 @@ const teams = [
     shortName: "KH",
     group: "D",
     logoUrl: "/assets/league-logos/kh.png",
-    seasonPoints: 0,
+    seasonPoints: 2,
+     nrr: -0.397,
     players: [
       { playerName: "Shai Hope", role: "WK" },
       { playerName: "Kane Williamson", role: "BAT" },
@@ -330,6 +343,7 @@ const teams = [
     group: "D",
     logoUrl: "/assets/league-logos/kl.png",
     seasonPoints: 0,
+     nrr: -2.687,
     players: [
       { playerName: "Travis Head", role: "BAT" },
       { playerName: "Pat Cummins", role: "ALL" },
@@ -352,7 +366,8 @@ const teams = [
     shortName: "PF",
     group: "D",
     logoUrl: "/assets/league-logos/pf.png",
-    seasonPoints: 0,
+    seasonPoints: 2,
+     nrr: 4.500,
     players: [
       { playerName: "Harry Brook", role: "BAT" },
       { playerName: "Babar Azam", role: "BAT" },
@@ -375,7 +390,8 @@ const teams = [
     shortName: "LW",
     group: "D",
     logoUrl: "/assets/league-logos/lw.png",
-    seasonPoints: 0,
+    seasonPoints: 2,
+     nrr: 1.500,
     players: [
       { playerName: "Quinton de Kock", role: "WK" },
       { playerName: "Jason Roy", role: "BAT" },

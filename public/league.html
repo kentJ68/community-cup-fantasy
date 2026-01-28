@@ -18,6 +18,7 @@
     .player-item:last-child { border-bottom:none; }
     .group-title { font-size:1.1rem; font-weight:800; margin:18px 0 8px; }
     .stand-row { display:flex; justify-content:space-between; padding:8px; border-radius:8px; background:var(--card); margin-bottom:8px; }
+    .qualified { color:#4ade80; font-weight:700; }
     @media (max-width:900px){ .teams-grid { grid-template-columns:1fr; } }
   </style>
 </head>
@@ -45,14 +46,21 @@
     </div>
 
     <div style="display:flex;gap:18px;flex-wrap:wrap;">
+      <!-- LEFT -->
       <div style="flex:2;min-width:280px;">
         <div id="groupsContainer"></div>
       </div>
 
+      <!-- RIGHT -->
       <aside style="flex:1;min-width:240px;">
         <div class="card">
           <h3>Overall Standings</h3>
           <div id="standings" class="muted">Loading…</div>
+        </div>
+
+        <div class="card" style="margin-top:16px;">
+          <h3>Group Standings</h3>
+          <div id="groupStandings" class="muted">Loading…</div>
         </div>
       </aside>
     </div>
@@ -63,14 +71,13 @@
 
 <script>
 const GROUPS = {
-  "GROUP A": ["LONE RANGERS","WULF NATION","ORANGE ROCKS","KHALSA VIKINGS"],
-  "GROUP B": ["UP WARRIORS","HARYANA BLAZERS","PINAKA STRIKERS","KESARI XI"],
-  "GROUP C": ["PUNJAB DE SHER","AGRA GLADIATORS","THE WELLKNOWNS","ROYAL KNIGHTS"],
-  "GROUP D": ["KOLKATA HEROES","PREET FIGHTERS","KOLKATA LEGENDS","LUNAR WULFS"]
+  A: ["LONE RANGERS","WULF NATION","ORANGE ROCKS","KHALSA VIKINGS"],
+  B: ["UP WARRIORS","HARYANA BLAZERS","PINAKA STRIKERS","KESARI XI"],
+  C: ["PUNJAB DE SHER","AGRA GLADIATORS","THE WELLKNOWNS","ROYAL KNIGHTS"],
+  D: ["KOLKATA HEROES","PREET FIGHTERS","KOLKATA LEGENDS","LUNAR WULFS"]
 };
 
 let TEAMS = [];
-
 const normalize = s => String(s||"").trim().toUpperCase();
 
 async function apiGet(url){
@@ -82,15 +89,15 @@ function logo(team){
   return team.logoUrl || team.logo || "/assets/logo.png";
 }
 
+// ---------------- GROUP VIEW ----------------
 function renderGroups(){
   const q = searchBox.value.toLowerCase();
   const role = roleFilter.value;
   const wrap = document.getElementById("groupsContainer");
   wrap.innerHTML = "";
 
-  for (const [group, names] of Object.entries(GROUPS)) {
+  Object.entries(GROUPS).forEach(([key, names]) => {
     const wanted = names.map(normalize);
-
     const teams = TEAMS.filter(t => wanted.includes(normalize(t.name)))
       .filter(t => {
         if (role && !(t.players||[]).some(p => p.role === role)) return false;
@@ -100,7 +107,7 @@ function renderGroups(){
       });
 
     wrap.innerHTML += `
-      <div class="group-title">${group}</div>
+      <div class="group-title">GROUP ${key}</div>
       <div class="teams-grid">
         ${teams.length ? teams.map(team => `
           <div class="team-card card">
@@ -124,10 +131,10 @@ function renderGroups(){
               </div>
             </div>
           </div>
-        `).join("") : `<div class="muted">Teams not loaded yet</div>`}
+        `).join("") : `<div class="muted">No teams loaded</div>`}
       </div>
     `;
-  }
+  });
 
   document.querySelectorAll(".toggle").forEach(btn=>{
     btn.onclick = ()=>{
@@ -141,6 +148,7 @@ function renderGroups(){
   renderStandings();
 }
 
+// ---------------- OVERALL ----------------
 function renderStandings(){
   const box = document.getElementById("standings");
   const sorted = [...TEAMS].sort((a,b)=>(b.seasonPoints||0)-(a.seasonPoints||0));
@@ -152,10 +160,48 @@ function renderStandings(){
   `).join("");
 }
 
+// ---------------- GROUP STANDINGS ----------------
+async function loadGroupStandings(){
+  const box = document.getElementById("groupStandings");
+  box.innerHTML = "";
+
+  try {
+    const r = await fetch("/api/league/group-standings");
+    const j = await r.json();
+    if (!j.ok || !j.groups) throw new Error();
+
+    ["A","B","C","D"].forEach(g => {
+      const teams = j.groups[g] || [];
+      box.innerHTML += `
+        <div style="margin-bottom:14px;">
+          <div style="font-weight:800;margin-bottom:6px;">GROUP ${g}</div>
+          ${teams.length ? teams.map((t,i)=>`
+            <div class="stand-row">
+              <div>
+                ${i+1}. ${t.name}
+                ${i<2 ? `<span class="qualified"> (Q)</span>` : ``}
+              </div>
+              <div style="text-align:right;">
+                <div><strong>${t.points}</strong> pts</div>
+                <div class="muted small">NRR ${Number(t.nrr||0).toFixed(2)}</div>
+              </div>
+            </div>
+          `).join("") : `<div class="muted small">No matches played</div>`}
+        </div>
+      `;
+    });
+
+  } catch {
+    box.innerHTML = "Failed to load group standings";
+  }
+}
+
+// ---------------- INIT ----------------
 async function loadTeams(){
   const j = await apiGet("/api/league/teams");
   TEAMS = j.teams || [];
   renderGroups();
+  loadGroupStandings();
 }
 
 refreshBtn.onclick = loadTeams;
