@@ -849,6 +849,45 @@ app.get('/api/matches/:matchId/leaderboard', async (req, res) => {
   }
 });
 
+// -----------------------
+// Season Leaderboard
+// -----------------------
+app.get('/api/season/leaderboard', async (req, res) => {
+  try {
+    const rows = await Team.aggregate([
+      {
+        $match: {
+          banned: { $ne: true }
+        }
+      },
+      {
+        $group: {
+          _id: "$viewerName",
+          total: { $sum: "$totalPoints" },
+          matchesPlayed: { $sum: 1 }
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          viewerName: "$_id",
+          total: 1,
+          matchesPlayed: 1
+        }
+      },
+      {
+        $sort: { total: -1 }
+      }
+    ]);
+
+    return res.json({ ok: true, leaderboard: rows });
+  } catch (err) {
+    console.error('season leaderboard error:', err.message);
+    return res.status(500).json({ ok: false, error: 'Failed to load season leaderboard' });
+  }
+});
+
+
 // --- Provider fetch & normalize (example) ---
 async function fetchRawScorecardFromProvider(match, provider = 'example') {
   try {

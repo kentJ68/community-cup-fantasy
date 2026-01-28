@@ -3,240 +3,191 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>League • Beowulf Fantasy</title>
+  <title>League • Beowulf Fantasy (Season 2)</title>
   <link rel="stylesheet" href="/css/style.css" />
+
   <style>
-    /* small page-specific tweaks */
-    .teams-grid { display:grid; gap:12px; grid-template-columns: repeat(3, 1fr); }
+    .teams-grid { display:grid; gap:12px; grid-template-columns: repeat(2, 1fr); }
     .team-card { display:flex; gap:12px; align-items:flex-start; padding:12px; border-radius:10px; }
-    .team-logo { width:64px; height:64px; border-radius:10px; object-fit:cover; flex-shrink:0; }
+    .team-logo { width:60px; height:60px; border-radius:10px; object-fit:cover; flex-shrink:0; }
     .team-meta { flex:1; }
     .team-name { font-weight:700; font-size:1rem; }
     .team-short { font-size:0.9rem; color:var(--muted); }
-    .player-list { margin-top:10px; border-top:1px dashed rgba(255,255,255,0.03); padding-top:10px; display:none; }
-    .player-item { padding:6px 0; display:flex; justify-content:space-between; gap:12px; border-bottom:1px solid rgba(255,255,255,0.02); }
-    .player-item:last-child { border-bottom: none; }
-    .controls { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:12px; }
-    @media (max-width:900px) { .teams-grid { grid-template-columns: 1fr; } .team-logo { width:56px;height:56px; } }
-    .standings { margin-top:12px; }
-    .stand-row { display:flex; justify-content:space-between; padding:8px; border-radius:8px; background:var(--card); margin-bottom:8px; align-items:center; }
-    .no-teams { color:var(--muted); padding:12px; }
+    .player-list { margin-top:10px; border-top:1px dashed rgba(255,255,255,0.06); padding-top:10px; display:none; }
+    .player-item { padding:6px 0; display:flex; justify-content:space-between; border-bottom:1px solid rgba(255,255,255,0.03); }
+    .player-item:last-child { border-bottom:none; }
+
+    .group-title {
+      font-size:1.1rem;
+      font-weight:800;
+      margin:18px 0 8px;
+      letter-spacing:0.5px;
+    }
+
+    .stand-row {
+      display:flex;
+      justify-content:space-between;
+      padding:8px;
+      border-radius:8px;
+      background:var(--card);
+      margin-bottom:8px;
+      align-items:center;
+    }
+
+    @media (max-width:900px) {
+      .teams-grid { grid-template-columns: 1fr; }
+    }
   </style>
 </head>
+
 <body>
-  <div class="app">
-    <script src="/js/layout.js"></script>
+<div class="app">
+<script src="/js/layout.js"></script>
 
-    <main class="main">
-      <h2>League — Teams</h2>
-      <p class="muted">All franchises in the Beowulf Community Cup. Click a team to expand the player list.</p>
+<main class="main">
+  <h2>Community Cup — Season 2</h2>
+  <p class="muted">
+    16 teams • 4 groups • Click a team to view squad details
+  </p>
 
-      <section class="card">
-        <div class="controls">
-          <input id="searchBox" class="input" placeholder="Search teams or players..." style="flex:1; min-width:160px;">
-          <select id="roleFilter" class="input" style="width:160px;">
-            <option value="">All roles</option>
-            <option value="BAT">BAT</option>
-            <option value="BWL">BWL</option>
-            <option value="ALL">ALL</option>
-            <option value="WK">WK</option>
-          </select>
-          <button id="refreshBtn" class="btn-ghost">Refresh</button>
+  <section class="card">
+    <div class="controls" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
+      <input id="searchBox" class="input" placeholder="Search team or player..." style="flex:1;min-width:180px;">
+      <select id="roleFilter" class="input" style="width:140px;">
+        <option value="">All roles</option>
+        <option value="BAT">BAT</option>
+        <option value="BWL">BWL</option>
+        <option value="ALL">ALL</option>
+        <option value="WK">WK</option>
+      </select>
+      <button id="refreshBtn" class="btn-ghost">Refresh</button>
+    </div>
+
+    <div style="display:flex;gap:18px;flex-wrap:wrap;">
+      <!-- LEFT -->
+      <div style="flex:2;min-width:280px;">
+        <div id="groupsContainer"></div>
+      </div>
+
+      <!-- RIGHT -->
+      <aside style="flex:1;min-width:240px;">
+        <div class="card">
+          <h3>Overall Standings</h3>
+          <div id="standings" class="muted">Loading…</div>
         </div>
-
-        <div style="display:flex;gap:18px;flex-wrap:wrap;">
-          <div style="flex:2; min-width:280px;">
-            <div id="teamsContainer" class="teams-grid">
-              <div class="muted">Loading teams…</div>
-            </div>
-          </div>
-
-          <aside style="flex:1; min-width:220px;">
-            <div class="card">
-              <h3>Standings</h3>
-              <div id="standings" class="standings">
-                <div class="muted">Loading…</div>
-              </div>
-            </div>
-
-            <div class="card" style="margin-top:12px;">
-              <h3>Quick Info</h3>
-              <div class="muted small">Teams are fetched from <code>/api/league/teams</code>. If that route isn't present, try <code>/api/debug/league-teams</code>.</div>
-            </div>
-          </aside>
-        </div>
-      </section>
-    </main>
-  </div>
+      </aside>
+    </div>
+  </section>
+</main>
+</div>
 
 <script>
-  // Prefer App.get if available
-  async function apiGet(path) {
-    if (window.App && typeof App.get === 'function') {
-      try {
-        const r = await App.get(path);
-        if (r && r.ok) return r.data || r;
-      } catch (e) { /* fallback */ }
-    }
-    const res = await fetch(path);
-    return res.json();
-  }
+const GROUPS = {
+  "GROUP A": ["LONE RANGERS","WULF NATION","ORANGE ROCKS","KHALSA VIKINGS"],
+  "GROUP B": ["UP WARRIORS","HARYANA BLAZERS","PINAKA STRIKERS","KESARI XI"],
+  "GROUP C": ["PUNJAB DE SHER","AGRA GLADIATORS","THE WELLKNOWNS","ROYAL KNIGHTS"],
+  "GROUP D": ["KOLKATA HEROES","PREET FIGHTERS","KOLKATA LEGENDS","LUNAR WULFS"]
+};
 
-  let TEAMS = [];
+let TEAMS = [];
 
-  // normalize logo selection: prefer team.logoUrl, then team.logo, else computed path, else default
-  function pickLogoForTeam(team) {
-    // 1) explicit CDN/URL provided by server
-    if (team.logoUrl && String(team.logoUrl).trim()) return team.logoUrl;
+async function apiGet(url){
+  const r = await fetch(url);
+  return r.json();
+}
 
-    // 2) legacy `logo` field (some codebases use this)
-    if (team.logo && String(team.logo).trim()) return team.logo;
+function logo(team){
+  return team.logoUrl || team.logo || "/assets/logo.png";
+}
 
-    // 3) try a predictable local assets path derived from shortName/name
-    const baseName = (team.shortName || team.name || '').toLowerCase().replace(/\s+/g,'').replace(/[^a-z0-9_-]/g, '');
-    if (baseName) return `/assets/teams/${baseName}.png`;
+function escape(s){
+  return String(s||"").replace(/[&<>"']/g,m=>({
+    "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"
+  }[m]));
+}
 
-    // 4) fallback to a generic default
-    return '/assets/logo.png';
-  }
+function renderGroups(){
+  const q = searchBox.value.toLowerCase();
+  const role = roleFilter.value;
+  const wrap = document.getElementById("groupsContainer");
+  wrap.innerHTML = "";
 
-  function renderTeams(filterQ = '', role = '') {
-    const container = document.getElementById('teamsContainer');
-    const q = (filterQ || '').toLowerCase().trim();
-    const list = TEAMS.filter(t => {
-      if (role) {
-        const hasRole = (t.players || []).some(p => (p.role||'').toUpperCase() === role.toUpperCase());
-        if (!hasRole) return false;
-      }
-      if (!q) return true;
-      const s = `${t.name} ${t.shortName} ${(t.players||[]).map(p=>p.playerName).join(' ')}`.toLowerCase();
-      return s.includes(q);
-    });
-
-    if (!list.length) {
-      container.innerHTML = '<div class="no-teams">No teams match your filters.</div>';
-      renderStandings();
-      return;
-    }
-
-    container.innerHTML = list.map(team => {
-      const logoSrc = pickLogoForTeam(team);
-      const playersCount = (team.players || []).length;
-      const points = team.seasonPoints != null ? team.seasonPoints : 0;
-      return `
-        <div class="team-card card" data-team-id="${team._id || ''}">
-          <img class="team-logo" src="${escapeHtml(logoSrc)}" loading="lazy" onerror="this.onerror=null;this.src='/assets/logo.png'"/>
-          <div class="team-meta">
-            <div style="display:flex;align-items:center;gap:8px;">
-              <div>
-                <div class="team-name">${escapeHtml(team.name)}</div>
-                <div class="team-short">${escapeHtml(team.shortName || '')} • ${playersCount} players</div>
-              </div>
-              <div style="margin-left:auto; text-align:right;">
-                <div style="font-weight:700">${points} pts</div>
-                <div class="muted small">Season</div>
-              </div>
-            </div>
-            <div style="margin-top:8px;">
-              <button class="btn-ghost small toggle-players">Show players</button>
-            </div>
-
-            <div class="player-list">
-              ${(team.players || []).map(p => `
-                <div class="player-item">
-                  <div>${escapeHtml(p.playerName)}</div>
-                  <div class="muted small">${escapeHtml(p.role || '')}</div>
-                </div>
-              `).join('')}
-            </div>
-          </div>
-        </div>
-      `;
-    }).join('');
-
-    // bind toggles
-    document.querySelectorAll('.team-card').forEach(card => {
-      const btn = card.querySelector('.toggle-players');
-      const list = card.querySelector('.player-list');
-      if (btn && list) {
-        btn.addEventListener('click', () => {
-          const shown = list.style.display === 'block';
-          list.style.display = shown ? 'none' : 'block';
-          btn.textContent = shown ? 'Show players' : 'Hide players';
-        });
-      }
-    });
-
-    renderStandings();
-  }
-
-  function renderStandings() {
-    const box = document.getElementById('standings');
-    if (!TEAMS || TEAMS.length === 0) { box.innerHTML = '<div class="muted">No data</div>'; return; }
-    const sorted = [...TEAMS].sort((a,b)=> (b.seasonPoints||0) - (a.seasonPoints||0));
-    box.innerHTML = sorted.map((t,i) => {
-      const logoSrc = pickLogoForTeam(t);
-      return `
-      <div class="stand-row">
-        <div style="display:flex;gap:8px;align-items:center;">
-          <div style="width:32px;height:32px;border-radius:6px;overflow:hidden;">
-            <img src="${escapeHtml(logoSrc)}" style="width:100%;height:100%;object-fit:cover" onerror="this.onerror=null;this.src='/assets/logo.png'"/>
-          </div>
-          <div style="min-width:120px;">${escapeHtml(t.name)}</div>
-        </div>
-        <div style="text-align:right;min-width:70px;">
-          <div style="font-weight:700">${t.seasonPoints || 0} pts</div>
-          <div class="muted small">#${i+1}</div>
-        </div>
-      </div>
-    `}).join('');
-  }
-
-  function escapeHtml(s) {
-    if (s === null || s === undefined) return '';
-    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-  }
-
-  async function loadTeams() {
-    const container = document.getElementById('teamsContainer');
-    container.innerHTML = '<div class="muted">Loading teams…</div>';
-    try {
-      let j = await apiGet('/api/league/teams').catch(()=>null);
-      if (!j || (!j.ok && !Array.isArray(j.teams))) {
-        j = await apiGet('/api/debug/league-teams').catch(()=>null);
-      }
-      const teams = (j && j.teams) ? j.teams : (Array.isArray(j) ? j : []);
-      TEAMS = teams.map(t => {
-        // normalize: prefer server field names logoUrl or logo, but keep both for safety
-        return Object.assign({
-          seasonPoints: t.seasonPoints || 0,
-          logoUrl: t.logoUrl || t.logo || '', // keep fields so pickLogoForTeam can use them
-          logo: t.logo || t.logoUrl || ''
-        }, t);
+  for (const [group, names] of Object.entries(GROUPS)) {
+    const teams = TEAMS.filter(t => names.includes(t.name))
+      .filter(t => {
+        if (role && !(t.players||[]).some(p => p.role === role)) return false;
+        if (!q) return true;
+        const s = (t.name + " " + (t.players||[]).map(p=>p.playerName).join(" ")).toLowerCase();
+        return s.includes(q);
       });
-      renderTeams(document.getElementById('searchBox').value, document.getElementById('roleFilter').value);
-    } catch (err) {
-      console.error('loadTeams error', err);
-      container.innerHTML = '<div class="muted">Failed to load teams</div>';
-    }
+
+    if (!teams.length) continue;
+
+    wrap.innerHTML += `
+      <div class="group-title">${group}</div>
+      <div class="teams-grid">
+        ${teams.map(team => `
+          <div class="team-card card">
+            <img class="team-logo" src="${logo(team)}"
+              onerror="this.src='/assets/logo.png'">
+            <div class="team-meta">
+              <div style="display:flex;justify-content:space-between;">
+                <div>
+                  <div class="team-name">${escape(team.name)}</div>
+                  <div class="team-short">${escape(team.shortName||"")}</div>
+                </div>
+                <div style="font-weight:700">${team.seasonPoints||0} pts</div>
+              </div>
+              <button class="btn-ghost small toggle">Show players</button>
+              <div class="player-list">
+                ${(team.players||[]).map(p=>`
+                  <div class="player-item">
+                    <span>${escape(p.playerName)}</span>
+                    <span class="muted small">${escape(p.role||"")}</span>
+                  </div>
+                `).join("")}
+              </div>
+            </div>
+          </div>
+        `).join("")}
+      </div>
+    `;
   }
 
-  // wire controls
-  document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('refreshBtn').addEventListener('click', loadTeams);
-    document.getElementById('searchBox').addEventListener('input', (e)=> {
-      renderTeams(e.target.value, document.getElementById('roleFilter').value);
-    });
-    document.getElementById('roleFilter').addEventListener('change', (e)=>{
-      renderTeams(document.getElementById('searchBox').value, e.target.value);
-    });
-
-    // initial load
-    loadTeams();
-
-    // attach App.init if present
-    try { if (window.App && typeof App.init === 'function') App.init(); } catch(e){}
+  document.querySelectorAll(".toggle").forEach(btn=>{
+    btn.onclick = ()=>{
+      const list = btn.nextElementSibling;
+      const open = list.style.display === "block";
+      list.style.display = open ? "none" : "block";
+      btn.textContent = open ? "Show players" : "Hide players";
+    };
   });
+
+  renderStandings();
+}
+
+function renderStandings(){
+  const box = document.getElementById("standings");
+  const sorted = [...TEAMS].sort((a,b)=>(b.seasonPoints||0)-(a.seasonPoints||0));
+  box.innerHTML = sorted.map((t,i)=>`
+    <div class="stand-row">
+      <div>${i+1}. ${escape(t.name)}</div>
+      <div><strong>${t.seasonPoints||0}</strong></div>
+    </div>
+  `).join("");
+}
+
+async function loadTeams(){
+  const j = await apiGet("/api/league/teams");
+  TEAMS = j.teams || [];
+  renderGroups();
+}
+
+refreshBtn.onclick = loadTeams;
+searchBox.oninput = renderGroups;
+roleFilter.onchange = renderGroups;
+
+loadTeams();
 </script>
 </body>
 </html>

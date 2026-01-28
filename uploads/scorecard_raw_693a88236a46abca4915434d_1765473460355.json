@@ -1,0 +1,339 @@
+{
+  "provider": "example",
+  "raw": {
+    "provider": "manual",
+    "match": {
+      "homeTeam": "Punjab Warriors",
+      "awayTeam": "Lucknow Nawabs",
+      "notes": "Parsed from screenshots provided by user (some fields null where not visible)."
+    },
+    "innings": [
+      {
+        "team": "Punjab Warriors",
+        "total": 138,
+        "wickets": 2,
+        "overs": 10,
+        "batting": [
+          {
+            "playerName": "Jos Buttler",
+            "runs": 81,
+            "balls": 29,
+            "status": "not out",
+            "fours": null,
+            "sixes": null
+          },
+          {
+            "playerName": "Sunil Narine",
+            "runs": 37,
+            "balls": 24,
+            "status": "out (c & b J. Bumrah)",
+            "fours": null,
+            "sixes": null
+          },
+          {
+            "playerName": "Shubman Gill",
+            "runs": 7,
+            "balls": 3,
+            "status": "out (b S. Raza)",
+            "fours": null,
+            "sixes": null
+          },
+          {
+            "playerName": "Glenn Phillips",
+            "runs": 12,
+            "balls": 4,
+            "status": "not out",
+            "fours": null,
+            "sixes": null
+          },
+          {
+            "playerName": "Liam Livingstone",
+            "runs": null,
+            "balls": null,
+            "status": null,
+            "fours": null,
+            "sixes": null
+          },
+          {
+            "playerName": "Shimron Hetmyer",
+            "runs": null,
+            "balls": null,
+            "status": null,
+            "fours": null,
+            "sixes": null
+          },
+          {
+            "playerName": "Jason Holder",
+            "runs": null,
+            "balls": null,
+            "status": null,
+            "fours": null,
+            "sixes": null
+          },
+          {
+            "playerName": "Shaheen Shah Afridi",
+            "runs": null,
+            "balls": null,
+            "status": null,
+            "fours": null,
+            "sixes": null
+          },
+          {
+            "playerName": "Mujeeb Ur Rahman",
+            "runs": null,
+            "balls": null,
+            "status": null,
+            "fours": null,
+            "sixes": null
+          },
+          {
+            "playerName": "Arshdeep Singh",
+            "runs": null,
+            "balls": null,
+            "status": null,
+            "fours": null,
+            "sixes": null
+          },
+          {
+            "playerName": "Rahul Chahar",
+            "runs": null,
+            "balls": null,
+            "status": null,
+            "fours": null,
+            "sixes": null
+          }
+        ],
+        "bowling": [
+          {
+            "playerName": "S. Narine",
+            "overs": 1,
+            "maidens": 0,
+            "runs": 27,
+            "wickets": 0,
+            "economy": 27,
+            "extras": 0
+          },
+          {
+            "playerName": "J. Holder",
+            "overs": 1,
+            "maidens": 0,
+            "runs": 13,
+            "wickets": 0,
+            "economy": 13,
+            "extras": 1
+          },
+          {
+            "playerName": "S. Afridi",
+            "overs": 2,
+            "maidens": 0,
+            "runs": 14,
+            "wickets": 0,
+            "economy": 7,
+            "extras": 0
+          },
+          {
+            "playerName": "M. Ur Rahman",
+            "overs": 2,
+            "maidens": 0,
+            "runs": 35,
+            "wickets": 2,
+            "economy": 17.5,
+            "extras": 1
+          },
+          {
+            "playerName": "A. Singh",
+            "overs": 2,
+            "maidens": 0,
+            "runs": 26,
+            "wickets": 2,
+            "economy": 13,
+            "extras": 0
+          },
+          {
+            "playerName": "R. Chahar",
+            "overs": 2,
+            "maidens": 0,
+            "runs": 40,
+            "wickets": 0,
+            "economy": 20,
+            "extras": 0
+          },
+          {
+            "playerName": "J. Bumrah",
+            "overs": 2,
+            "maidens": 0,
+            "runs": 17,
+            "wickets": 1,
+            "economy": 8.5,
+            "extras": 0
+          }
+        ],
+        "fallOfWickets": [
+          "74-1",
+          "95-2"
+        ],
+        "extras": {
+          "b": 0,
+          "nb": 0,
+          "lb": 0,
+          "wd": 1
+        }
+      },
+      {
+        "team": "Lucknow Nawabs",
+        "total": 155,
+        "wickets": 4,
+        "overs": 10,
+        "batting": [
+          {
+            "playerName": "Rohit Sharma",
+            "runs": 6,
+            "balls": 4,
+            "status": null,
+            "fours": null,
+            "sixes": null
+          },
+          {
+            "playerName": "Quinton de Kock",
+            "runs": 74,
+            "balls": 30,
+            "status": "not out",
+            "fours": null,
+            "sixes": null
+          },
+          {
+            "playerName": "Virat Kohli",
+            "runs": 19,
+            "balls": 8,
+            "status": "out (c L. Livingstone b A. Singh)",
+            "fours": null,
+            "sixes": null
+          },
+          {
+            "playerName": "Sanju Samson",
+            "runs": 28,
+            "balls": 11,
+            "status": "out (c J. Holder b M. Ur Rahman)",
+            "fours": null,
+            "sixes": null
+          },
+          {
+            "playerName": "Suryakumar Yadav",
+            "runs": 16,
+            "balls": 5,
+            "status": "out (c J. Buttler b M. Ur Rahman)",
+            "fours": null,
+            "sixes": null
+          },
+          {
+            "playerName": "Zak Crawley",
+            "runs": 10,
+            "balls": 2,
+            "status": "not out",
+            "fours": null,
+            "sixes": null
+          },
+          {
+            "playerName": "Ravindra Jadeja",
+            "runs": null,
+            "balls": null,
+            "status": null,
+            "fours": null,
+            "sixes": null
+          },
+          {
+            "playerName": "Sikandar Raza",
+            "runs": null,
+            "balls": null,
+            "status": null,
+            "fours": null,
+            "sixes": null
+          },
+          {
+            "playerName": "Harshit Rana",
+            "runs": null,
+            "balls": null,
+            "status": null,
+            "fours": null,
+            "sixes": null
+          },
+          {
+            "playerName": "Trent Boult",
+            "runs": null,
+            "balls": null,
+            "status": null,
+            "fours": null,
+            "sixes": null
+          },
+          {
+            "playerName": "Jasprit Bumrah",
+            "runs": null,
+            "balls": null,
+            "status": null,
+            "fours": null,
+            "sixes": null
+          }
+        ],
+        "bowling": [
+          {
+            "playerName": "R. Jadeja",
+            "overs": 2,
+            "maidens": 0,
+            "runs": 39,
+            "wickets": 0,
+            "economy": 19.5,
+            "extras": 0
+          },
+          {
+            "playerName": "S. Raza",
+            "overs": 2,
+            "maidens": 0,
+            "runs": 38,
+            "wickets": 1,
+            "economy": 19,
+            "extras": 0
+          },
+          {
+            "playerName": "H. Rana",
+            "overs": 2,
+            "maidens": 0,
+            "runs": 32,
+            "wickets": 0,
+            "economy": 16,
+            "extras": 0
+          },
+          {
+            "playerName": "T. Boult",
+            "overs": 2,
+            "maidens": 0,
+            "runs": 12,
+            "wickets": 0,
+            "economy": 6,
+            "extras": 1
+          },
+          {
+            "playerName": "J. Bumrah",
+            "overs": 2,
+            "maidens": 0,
+            "runs": 17,
+            "wickets": 1,
+            "economy": 8.5,
+            "extras": 0
+          }
+        ],
+        "fallOfWickets": [
+          "7-1",
+          "33-2",
+          "112-3",
+          "128-4"
+        ],
+        "extras": {
+          "b": 0,
+          "nb": 0,
+          "lb": 0,
+          "wd": 2
+        }
+      }
+    ]
+  }
+}

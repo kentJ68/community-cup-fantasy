@@ -1,0 +1,155 @@
+{
+  "provider": "example",
+  "raw": {
+    "innings": [
+      {
+        "team": "Lucknow Nawabs",
+        "batting": [
+          {
+            "player": "Zak Crawley",
+            "runs": 21
+          },
+          {
+            "player": "Quinton de Kock",
+            "runs": 16
+          },
+          {
+            "player": "Virat Kohli",
+            "runs": 15
+          },
+          {
+            "player": "Sanju Samson",
+            "runs": 6
+          },
+          {
+            "player": "Suryakumar Yadav",
+            "runs": 29
+          },
+          {
+            "player": "Rohit Sharma",
+            "runs": 30
+          },
+          {
+            "player": "Ravindra Jadeja",
+            "runs": 0
+          }
+        ],
+        "bowling": [],
+        "fielding": []
+      },
+      {
+        "team": "Punjab De Sher",
+        "bowling": [
+          {
+            "player": "Harshit Rana",
+            "overs": 2,
+            "runs": 20,
+            "wickets": 1
+          },
+          {
+            "player": "Trent Boult",
+            "overs": 2,
+            "runs": 16,
+            "wickets": 1
+          },
+          {
+            "player": "Mohammed Shami",
+            "overs": 2,
+            "runs": 31,
+            "wickets": 1
+          },
+          {
+            "player": "Kuldeep Yadav",
+            "overs": 2,
+            "runs": 17,
+            "wickets": 1
+          },
+          {
+            "player": "Matt Henry",
+            "overs": 2,
+            "runs": 17,
+            "wickets": 1
+          }
+        ],
+        "fielding": [
+          {
+            "player": "Aiden Markram",
+            "catches": 2
+          },
+          {
+            "player": "Harry Brook",
+            "catches": 1
+          },
+          {
+            "player": "Abhishek Sharma",
+            "catches": 1
+          }
+        ]
+      },
+      {
+        "team": "Punjab De Sher",
+        "batting": [
+          {
+            "player": "Travis Head",
+            "runs": 73
+          },
+          {
+            "player": "Abhishek Sharma",
+            "runs": 0
+          },
+          {
+            "player": "Aiden Markram",
+            "runs": 37
+          },
+          {
+            "player": "Harry Brook",
+            "runs": 6
+          }
+        ],
+        "bowling": [],
+        "fielding": []
+      },
+      {
+        "team": "Lucknow Nawabs",
+        "bowling": [
+          {
+            "player": "Ravindra Jadeja",
+            "overs": 2,
+            "runs": 29,
+            "wickets": 0
+          },
+          {
+            "player": "Sikandar Raza",
+            "overs": 1,
+            "runs": 23,
+            "wickets": 0
+          },
+          {
+            "player": "Harshit Rana",
+            "overs": 2,
+            "runs": 20,
+            "wickets": 1
+          },
+          {
+            "player": "Trent Boult",
+            "overs": 2,
+            "runs": 16,
+            "wickets": 1
+          },
+          {
+            "player": "Jasprit Bumrah",
+            "overs": 2,
+            "runs": 33,
+            "wickets": 0
+          }
+        ],
+        "fielding": [
+          {
+            "player": "Quinton de Kock",
+            "catches": 1
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,200 @@
+{
+  "provider": "example",
+  "raw": {
+    "provider": "manual",
+    "raw": {
+      "parsedBatting": [
+        {
+          "playerName": "Travis Head",
+          "runs": 73,
+          "fours": 0,
+          "sixes": 0,
+          "wickets": 0,
+          "maidens": 0,
+          "catches": 0,
+          "mvp": false
+        },
+        {
+          "playerName": "Abhishek Sharma",
+          "runs": 0,
+          "fours": 0,
+          "sixes": 0,
+          "wickets": 0,
+          "maidens": 0,
+          "catches": 1,
+          "mvp": false
+        },
+        {
+          "playerName": "Aiden Markram",
+          "runs": 37,
+          "fours": 0,
+          "sixes": 0,
+          "wickets": 0,
+          "maidens": 0,
+          "catches": 2,
+          "mvp": false
+        },
+        {
+          "playerName": "Harry Brook",
+          "runs": 6,
+          "fours": 0,
+          "sixes": 0,
+          "wickets": 0,
+          "maidens": 0,
+          "catches": 1,
+          "mvp": false
+        },
+        {
+          "playerName": "Zak Crawley",
+          "runs": 21,
+          "fours": 0,
+          "sixes": 0,
+          "wickets": 0,
+          "maidens": 0,
+          "catches": 0,
+          "mvp": false
+        },
+        {
+          "playerName": "Quinton de Kock",
+          "runs": 16,
+          "fours": 0,
+          "sixes": 0,
+          "wickets": 0,
+          "maidens": 0,
+          "catches": 1,
+          "mvp": false
+        },
+        {
+          "playerName": "Virat Kohli",
+          "runs": 15,
+          "fours": 0,
+          "sixes": 0,
+          "wickets": 0,
+          "maidens": 0,
+          "catches": 0,
+          "mvp": false
+        },
+        {
+          "playerName": "Sanju Samson",
+          "runs": 6,
+          "fours": 0,
+          "sixes": 0,
+          "wickets": 0,
+          "maidens": 0,
+          "catches": 0,
+          "mvp": false
+        },
+        {
+          "playerName": "Suryakumar Yadav",
+          "runs": 29,
+          "fours": 0,
+          "sixes": 0,
+          "wickets": 0,
+          "maidens": 0,
+          "catches": 0,
+          "mvp": false
+        },
+        {
+          "playerName": "Rohit Sharma",
+          "runs": 30,
+          "fours": 0,
+          "sixes": 0,
+          "wickets": 0,
+          "maidens": 0,
+          "catches": 0,
+          "mvp": false
+        },
+        {
+          "playerName": "Ravindra Jadeja",
+          "runs": 0,
+          "fours": 0,
+          "sixes": 0,
+          "wickets": 0,
+          "maidens": 0,
+          "catches": 0,
+          "mvp": false
+        },
+        {
+          "playerName": "Kyle Jamieson",
+          "runs": 0,
+          "fours": 0,
+          "sixes": 0,
+          "wickets": 2,
+          "maidens": 0,
+          "catches": 0,
+          "mvp": false
+        },
+        {
+          "playerName": "Mohammed Shami",
+          "runs": 0,
+          "fours": 0,
+          "sixes": 0,
+          "wickets": 1,
+          "maidens": 0,
+          "catches": 0,
+          "mvp": false
+        },
+        {
+          "playerName": "Kuldeep Yadav",
+          "runs": 0,
+          "fours": 0,
+          "sixes": 0,
+          "wickets": 1,
+          "maidens": 0,
+          "catches": 0,
+          "mvp": false
+        },
+        {
+          "playerName": "Matt Henry",
+          "runs": 0,
+          "fours": 0,
+          "sixes": 0,
+          "wickets": 1,
+          "maidens": 0,
+          "catches": 0,
+          "mvp": false
+        },
+        {
+          "playerName": "Harshit Rana",
+          "runs": 0,
+          "fours": 0,
+          "sixes": 0,
+          "wickets": 1,
+          "maidens": 0,
+          "catches": 0,
+          "mvp": false
+        },
+        {
+          "playerName": "Trent Boult",
+          "runs": 0,
+          "fours": 0,
+          "sixes": 0,
+          "wickets": 1,
+          "maidens": 0,
+          "catches": 0,
+          "mvp": false
+        },
+        {
+          "playerName": "Jasprit Bumrah",
+          "runs": 0,
+          "fours": 0,
+          "sixes": 0,
+          "wickets": 0,
+          "maidens": 0,
+          "catches": 0,
+          "mvp": false
+        },
+        {
+          "playerName": "Sikandar Raza",
+          "runs": 0,
+          "fours": 0,
+          "sixes": 0,
+          "wickets": 0,
+          "maidens": 0,
+          "catches": 0,
+          "mvp": false
+        }
+      ]
+    }
+  }
+}

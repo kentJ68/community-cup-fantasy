@@ -1,0 +1,236 @@
+{
+  "provider": "example",
+  "raw": [
+    {
+      "playerName": "Jos Buttler",
+      "runs": 81,
+      "balls": 29,
+      "fours": 0,
+      "sixes": 0,
+      "wickets": 0,
+      "maidens": 0,
+      "catches": 0,
+      "mvp": false
+    },
+    {
+      "playerName": "Sunil Narine",
+      "runs": 37,
+      "balls": 24,
+      "fours": 0,
+      "sixes": 0,
+      "wickets": 0,
+      "maidens": 0,
+      "catches": 0,
+      "mvp": false
+    },
+    {
+      "playerName": "Shubman Gill",
+      "runs": 7,
+      "balls": 3,
+      "fours": 0,
+      "sixes": 0,
+      "wickets": 0,
+      "maidens": 0,
+      "catches": 0,
+      "mvp": false
+    },
+    {
+      "playerName": "Glenn Phillips",
+      "runs": 12,
+      "balls": 4,
+      "fours": 0,
+      "sixes": 0,
+      "wickets": 0,
+      "maidens": 0,
+      "catches": 0,
+      "mvp": false
+    },
+    {
+      "playerName": "S. Narine",
+      "runs": 0,
+      "balls": 0,
+      "fours": 0,
+      "sixes": 0,
+      "wickets": 0,
+      "maidens": 0,
+      "catches": 0,
+      "mvp": false
+    },
+    {
+      "playerName": "J. Holder",
+      "runs": 0,
+      "balls": 0,
+      "fours": 0,
+      "sixes": 0,
+      "wickets": 0,
+      "maidens": 0,
+      "catches": 0,
+      "mvp": false
+    },
+    {
+      "playerName": "S. Afridi",
+      "runs": 0,
+      "balls": 0,
+      "fours": 0,
+      "sixes": 0,
+      "wickets": 0,
+      "maidens": 0,
+      "catches": 0,
+      "mvp": false
+    },
+    {
+      "playerName": "M. Ur Rahman",
+      "runs": 0,
+      "balls": 0,
+      "fours": 0,
+      "sixes": 0,
+      "wickets": 2,
+      "maidens": 0,
+      "catches": 0,
+      "mvp": false
+    },
+    {
+      "playerName": "A. Singh",
+      "runs": 0,
+      "balls": 0,
+      "fours": 0,
+      "sixes": 0,
+      "wickets": 2,
+      "maidens": 0,
+      "catches": 0,
+      "mvp": false
+    },
+    {
+      "playerName": "R. Chahar",
+      "runs": 0,
+      "balls": 0,
+      "fours": 0,
+      "sixes": 0,
+      "wickets": 0,
+      "maidens": 0,
+      "catches": 0,
+      "mvp": false
+    },
+    {
+      "playerName": "J. Bumrah",
+      "runs": 0,
+      "balls": 0,
+      "fours": 0,
+      "sixes": 0,
+      "wickets": 1,
+      "maidens": 0,
+      "catches": 0,
+      "mvp": false
+    },
+    {
+      "playerName": "Rohit Sharma",
+      "runs": 6,
+      "balls": 4,
+      "fours": 0,
+      "sixes": 0,
+      "wickets": 0,
+      "maidens": 0,
+      "catches": 0,
+      "mvp": false
+    },
+    {
+      "playerName": "Quinton de Kock",
+      "runs": 74,
+      "balls": 30,
+      "fours": 0,
+      "sixes": 0,
+      "wickets": 0,
+      "maidens": 0,
+      "catches": 0,
+      "mvp": false
+    },
+    {
+      "playerName": "Virat Kohli",
+      "runs": 19,
+      "balls": 8,
+      "fours": 0,
+      "sixes": 0,
+      "wickets": 0,
+      "maidens": 0,
+      "catches": 0,
+      "mvp": false
+    },
+    {
+      "playerName": "Sanju Samson",
+      "runs": 28,
+      "balls": 11,
+      "fours": 0,
+      "sixes": 0,
+      "wickets": 0,
+      "maidens": 0,
+      "catches": 0,
+      "mvp": false
+    },
+    {
+      "playerName": "Suryakumar Yadav",
+      "runs": 16,
+      "balls": 5,
+      "fours": 0,
+      "sixes": 0,
+      "wickets": 0,
+      "maidens": 0,
+      "catches": 0,
+      "mvp": false
+    },
+    {
+      "playerName": "Zak Crawley",
+      "runs": 10,
+      "balls": 2,
+      "fours": 0,
+      "sixes": 0,
+      "wickets": 0,
+      "maidens": 0,
+      "catches": 0,
+      "mvp": false
+    },
+    {
+      "playerName": "R. Jadeja",
+      "runs": 0,
+      "balls": 0,
+      "fours": 0,
+      "sixes": 0,
+      "wickets": 0,
+      "maidens": 0,
+      "catches": 0,
+      "mvp": false
+    },
+    {
+      "playerName": "S. Raza",
+      "runs": 0,
+      "balls": 0,
+      "fours": 0,
+      "sixes": 0,
+      "wickets": 1,
+      "maidens": 0,
+      "catches": 0,
+      "mvp": false
+    },
+    {
+      "playerName": "H. Rana",
+      "runs": 0,
+      "balls": 0,
+      "fours": 0,
+      "sixes": 0,
+      "wickets": 0,
+      "maidens": 0,
+      "catches": 0,
+      "mvp": false
+    },
+    {
+      "playerName": "T. Boult",
+      "runs": 0,
+      "balls": 0,
+      "fours": 0,
+      "sixes": 0,
+      "wickets": 0,
+      "maidens": 0,
+      "catches": 0,
+      "mvp": false
+    }
+  ]
+}

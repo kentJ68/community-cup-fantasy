@@ -1,0 +1,90 @@
+{
+  "provider": "example",
+  "raw": {
+    "stats": [
+      {
+        "playerName": "Travis Head",
+        "runs": 73
+      },
+      {
+        "playerName": "Abhishek Sharma",
+        "runs": 1
+      },
+      {
+        "playerName": "Aiden Markram",
+        "runs": 37
+      },
+      {
+        "playerName": "Harry Brook",
+        "runs": 6
+      },
+      {
+        "playerName": "Ben Stokes",
+        "runs": 0,
+        "wickets": 0
+      },
+      {
+        "playerName": "Kyle Jamieson",
+        "wickets": 2,
+        "maidens": 0
+      },
+      {
+        "playerName": "Mohd. Shami",
+        "wickets": 1
+      },
+      {
+        "playerName": "Kuldeep Yadav",
+        "wickets": 1
+      },
+      {
+        "playerName": "Matt Henry",
+        "wickets": 1
+      },
+      {
+        "playerName": "Zak Crawley",
+        "runs": 21
+      },
+      {
+        "playerName": "Quinton de Kock",
+        "runs": 16
+      },
+      {
+        "playerName": "Virat Kohli",
+        "runs": 15
+      },
+      {
+        "playerName": "Sanju Samson",
+        "runs": 6
+      },
+      {
+        "playerName": "Suryakumar Yadav",
+        "runs": 29
+      },
+      {
+        "playerName": "Rohit Sharma",
+        "runs": 30
+      },
+      {
+        "playerName": "Ravindra Jadeja",
+        "runs": 0,
+        "maidens": 0
+      },
+      {
+        "playerName": "Sikandar Raza",
+        "runs": 0
+      },
+      {
+        "playerName": "Harshit Rana",
+        "wickets": 1
+      },
+      {
+        "playerName": "Trent Boult",
+        "wickets": 1
+      },
+      {
+        "playerName": "Jasprit Bumrah",
+        "wickets": 1
+      }
+    ]
+  }
+}

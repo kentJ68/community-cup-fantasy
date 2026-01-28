@@ -1,0 +1,69 @@
+{
+  "provider": "example",
+  "raw": {
+    "match_id": "MATCH_5",
+    "winner": "Punjab De Sher CC",
+    "players": [
+      {
+        "player": "Travis Head",
+        "team": "Punjab De Sher CC",
+        "points": 73
+      },
+      {
+        "player": "Aiden Markram",
+        "team": "Punjab De Sher CC",
+        "points": 45
+      },
+      {
+        "player": "Harry Brook",
+        "team": "Punjab De Sher CC",
+        "points": 10
+      },
+      {
+        "player": "Kyle Jamieson",
+        "team": "Punjab De Sher CC",
+        "points": 54
+      },
+      {
+        "player": "Mohammed Shami",
+        "team": "Punjab De Sher CC",
+        "points": 28
+      },
+      {
+        "player": "Kuldeep Yadav",
+        "team": "Punjab De Sher CC",
+        "points": 28
+      },
+      {
+        "player": "Matt Henry",
+        "team": "Punjab De Sher CC",
+        "points": 28
+      },
+      {
+        "player": "Suryakumar Yadav",
+        "team": "Lucknow Nawabs",
+        "points": 37
+      },
+      {
+        "player": "Rohit Sharma",
+        "team": "Lucknow Nawabs",
+        "points": 30
+      },
+      {
+        "player": "Zak Crawley",
+        "team": "Lucknow Nawabs",
+        "points": 21
+      },
+      {
+        "player": "Trent Boult",
+        "team": "Lucknow Nawabs",
+        "points": 25
+      },
+      {
+        "player": "Harshit Rana",
+        "team": "Lucknow Nawabs",
+        "points": 25
+      }
+    ]
+  }
+}

@@ -1,0 +1,180 @@
+{
+  "provider": "example",
+  "raw": {
+    "winner": "Punjab De Sher CC",
+    "team_scores": {
+      "Punjab De Sher CC": {
+        "runs": 121,
+        "wickets": 2,
+        "overs": 9
+      },
+      "Lucknow Nawabs": {
+        "runs": 117,
+        "wickets": 5,
+        "overs": 10
+      }
+    },
+    "players": [
+      {
+        "name": "Head",
+        "team": "Punjab De Sher CC",
+        "raw_stats": {
+          "runs": 73,
+          "wickets": 0
+        }
+      },
+      {
+        "name": "Markram",
+        "team": "Punjab De Sher CC",
+        "raw_stats": {
+          "runs": 37,
+          "wickets": 0
+        }
+      },
+      {
+        "name": "Brook",
+        "team": "Punjab De Sher CC",
+        "raw_stats": {
+          "runs": 6,
+          "wickets": 0
+        }
+      },
+      {
+        "name": "Abhishek Sharma",
+        "team": "Punjab De Sher CC",
+        "raw_stats": {
+          "runs": 0,
+          "wickets": 0
+        }
+      },
+      {
+        "name": "Kyle Jamieson",
+        "team": "Punjab De Sher CC",
+        "raw_stats": {
+          "runs": 0,
+          "wickets": 2
+        }
+      },
+      {
+        "name": "Shami (2nd Over)",
+        "team": "Punjab De Sher CC",
+        "raw_stats": {
+          "runs": 0,
+          "wickets": 1
+        }
+      },
+      {
+        "name": "Kuldeep yadav",
+        "team": "Punjab De Sher CC",
+        "raw_stats": {
+          "runs": 0,
+          "wickets": 1
+        }
+      },
+      {
+        "name": "Henry (1st Over)",
+        "team": "Punjab De Sher CC",
+        "raw_stats": {
+          "runs": 0,
+          "wickets": 1
+        }
+      },
+      {
+        "name": "Stokes (C)",
+        "team": "Punjab De Sher CC",
+        "raw_stats": {
+          "runs": 0,
+          "wickets": 0
+        }
+      },
+      {
+        "name": "Zak Crawley",
+        "team": "Lucknow Nawabs",
+        "raw_stats": {
+          "runs": 21,
+          "wickets": 0
+        }
+      },
+      {
+        "name": "Quinton de Kock",
+        "team": "Lucknow Nawabs",
+        "raw_stats": {
+          "runs": 16,
+          "wickets": 0
+        }
+      },
+      {
+        "name": "Virat Kohli",
+        "team": "Lucknow Nawabs",
+        "raw_stats": {
+          "runs": 15,
+          "wickets": 0
+        }
+      },
+      {
+        "name": "Sanju Samson",
+        "team": "Lucknow Nawabs",
+        "raw_stats": {
+          "runs": 6,
+          "wickets": 0
+        }
+      },
+      {
+        "name": "Suryakumar Yadav",
+        "team": "Lucknow Nawabs",
+        "raw_stats": {
+          "runs": 29,
+          "wickets": 0
+        }
+      },
+      {
+        "name": "Rohit Sharma",
+        "team": "Lucknow Nawabs",
+        "raw_stats": {
+          "runs": 30,
+          "wickets": 0
+        }
+      },
+      {
+        "name": "Ravindra Jadeja",
+        "team": "Lucknow Nawabs",
+        "raw_stats": {
+          "runs": 0,
+          "wickets": 0
+        }
+      },
+      {
+        "name": "Harshit Rana",
+        "team": "Lucknow Nawabs",
+        "raw_stats": {
+          "runs": 0,
+          "wickets": 1
+        }
+      },
+      {
+        "name": "Trent Boult",
+        "team": "Lucknow Nawabs",
+        "raw_stats": {
+          "runs": 0,
+          "wickets": 1
+        }
+      },
+      {
+        "name": "Sikandar Raza",
+        "team": "Lucknow Nawabs",
+        "raw_stats": {
+          "runs": 0,
+          "wickets": 0
+        }
+      },
+      {
+        "name": "Jasprit Bumrah",
+        "team": "Lucknow Nawabs",
+        "raw_stats": {
+          "runs": 0,
+          "wickets": 0
+        }
+      }
+    ]
+  }
+}

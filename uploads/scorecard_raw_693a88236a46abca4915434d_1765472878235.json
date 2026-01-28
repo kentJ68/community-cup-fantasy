@@ -1,0 +1,282 @@
+{
+  "provider": "example",
+  "raw": {
+    "match_id": "693a88236a46abca4915434d",
+    "match_date": null,
+    "winner": "Punjab Warriors",
+    "team_scores": {
+      "Punjab Warriors": {
+        "runs": 155,
+        "wickets": 4,
+        "overs": 10
+      },
+      "Lucknow Nawabs": {
+        "runs": 138,
+        "wickets": 2,
+        "overs": 10
+      }
+    },
+    "scoring_rules_used": {
+      "batting": {
+        "run": 1,
+        "50_bonus": 15,
+        "100_bonus": 25,
+        "strike_rate_over_150": 4,
+        "strike_rate_120_to_150": 2,
+        "not_out_bonus": 8
+      },
+      "bowling": {
+        "wicket": 25,
+        "3w_plus_bonus": 10,
+        "economy_penalty_over_10": -5
+      },
+      "fielding": {
+        "catch": 8,
+        "stumping_runout": 12
+      }
+    },
+    "players": [
+      {
+        "name": "Jos Buttler",
+        "team": "Punjab Warriors",
+        "role": "Batter",
+        "raw_stats": {
+          "runs": 81,
+          "balls": 29,
+          "fours": null,
+          "sixes": null,
+          "dismissal": "not out"
+        },
+        "computed_points": 108
+      },
+      {
+        "name": "Sunil Narine",
+        "team": "Punjab Warriors",
+        "role": "Allrounder",
+        "raw_stats": {
+          "runs": 37,
+          "balls": 24,
+          "dismissal": "c & b J. Bumrah",
+          "overs_bowled": 1,
+          "runs_conceded_bowling": 27,
+          "wickets": 0
+        },
+        "computed_points": 41
+      },
+      {
+        "name": "Shubman Gill",
+        "team": "Punjab Warriors",
+        "role": "Batter",
+        "raw_stats": {
+          "runs": 7,
+          "balls": 3,
+          "dismissal": "b S. Raza"
+        },
+        "computed_points": 7
+      },
+      {
+        "name": "Glenn Phillips",
+        "team": "Punjab Warriors",
+        "role": "Batter",
+        "raw_stats": {
+          "runs": 12,
+          "balls": 4,
+          "dismissal": "not out"
+        },
+        "computed_points": 24
+      },
+      {
+        "name": "Mujeeb Ur Rahman",
+        "team": "Punjab Warriors",
+        "role": "Bowler",
+        "raw_stats": {
+          "overs": 2,
+          "maidens": 0,
+          "runs": 35,
+          "wickets": 2
+        },
+        "computed_points": 50
+      },
+      {
+        "name": "Arshdeep Singh",
+        "team": "Punjab Warriors",
+        "role": "Bowler",
+        "raw_stats": {
+          "overs": 2,
+          "maidens": 0,
+          "runs": 26,
+          "wickets": 2
+        },
+        "computed_points": 50
+      },
+      {
+        "name": "Rahul Chahar",
+        "team": "Punjab Warriors",
+        "role": "Bowler",
+        "raw_stats": {
+          "overs": 2,
+          "maidens": 0,
+          "runs": 40,
+          "wickets": 0
+        },
+        "computed_points": 0
+      },
+      {
+        "name": "Quinton de Kock",
+        "team": "Lucknow Nawabs",
+        "role": "Batter",
+        "raw_stats": {
+          "runs": 74,
+          "balls": 30,
+          "fours": null,
+          "sixes": null,
+          "dismissal": "not out"
+        },
+        "computed_points": 101
+      },
+      {
+        "name": "Sanju Samson",
+        "team": "Lucknow Nawabs",
+        "role": "Batter",
+        "raw_stats": {
+          "runs": 28,
+          "balls": 11,
+          "dismissal": "c J. Holder b M. Ur Rahman"
+        },
+        "computed_points": 32
+      },
+      {
+        "name": "Virat Kohli",
+        "team": "Lucknow Nawabs",
+        "role": "Batter",
+        "raw_stats": {
+          "runs": 19,
+          "balls": 8,
+          "dismissal": "c L. Livingstone b A. Singh"
+        },
+        "computed_points": 23
+      },
+      {
+        "name": "Rohit Sharma",
+        "team": "Lucknow Nawabs",
+        "role": "Batter",
+        "raw_stats": {
+          "runs": 6,
+          "balls": 4,
+          "dismissal": "c J. Buttler b A. Singh"
+        },
+        "computed_points": 6
+      },
+      {
+        "name": "Suryakumar Yadav",
+        "team": "Lucknow Nawabs",
+        "role": "Batter",
+        "raw_stats": {
+          "runs": 16,
+          "balls": 5,
+          "dismissal": "c J. Buttler b M. Ur Rahman"
+        },
+        "computed_points": 20
+      },
+      {
+        "name": "Zak Crawley",
+        "team": "Lucknow Nawabs",
+        "role": "Batter",
+        "raw_stats": {
+          "runs": 10,
+          "balls": 2,
+          "dismissal": "not out"
+        },
+        "computed_points": 22
+      },
+      {
+        "name": "Jasprit Bumrah",
+        "team": "Lucknow Nawabs",
+        "role": "Bowler",
+        "raw_stats": {
+          "overs": 2,
+          "maidens": 0,
+          "runs": 17,
+          "wickets": 1
+        },
+        "computed_points": 25
+      },
+      {
+        "name": "Sikandar Raza",
+        "team": "Lucknow Nawabs",
+        "role": "Bowler",
+        "raw_stats": {
+          "overs": 2,
+          "maidens": 0,
+          "runs": 38,
+          "wickets": 1
+        },
+        "computed_points": 25
+      },
+      {
+        "name": "Harshit Rana",
+        "team": "Lucknow Nawabs",
+        "role": "Bowler",
+        "raw_stats": {
+          "overs": 2,
+          "maidens": 0,
+          "runs": 32,
+          "wickets": 0
+        },
+        "computed_points": 0
+      },
+      {
+        "name": "Trent Boult",
+        "team": "Lucknow Nawabs",
+        "role": "Bowler",
+        "raw_stats": {
+          "overs": 2,
+          "maidens": 0,
+          "runs": 12,
+          "wickets": 0
+        },
+        "computed_points": 0
+      },
+      {
+        "name": "Ravindra Jadeja",
+        "team": "Lucknow Nawabs",
+        "role": "Bowler",
+        "raw_stats": {
+          "overs": 2,
+          "maidens": 0,
+          "runs": 39,
+          "wickets": 0
+        },
+        "computed_points": 0
+      }
+    ],
+    "summary": {
+      "top_batsman": {
+        "name": "Jos Buttler",
+        "team": "Punjab Warriors",
+        "runs": 81,
+        "computed_points": 108
+      },
+      "top_batsman_2": {
+        "name": "Quinton de Kock",
+        "team": "Lucknow Nawabs",
+        "runs": 74,
+        "computed_points": 101
+      },
+      "top_bowler": [
+        {
+          "name": "Mujeeb Ur Rahman",
+          "team": "Punjab Warriors",
+          "wickets": 2,
+          "computed_points": 50
+        },
+        {
+          "name": "Arshdeep Singh",
+          "team": "Punjab Warriors",
+          "wickets": 2,
+          "computed_points": 50
+        }
+      ]
+    }
+  }
+}

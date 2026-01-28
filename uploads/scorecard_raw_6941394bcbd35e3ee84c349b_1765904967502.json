@@ -1,0 +1,232 @@
+{
+  "provider": "example",
+  "raw": {
+    "match": {
+      "teams": [
+        "Punjab De Sher CC",
+        "Punjab Warriors"
+      ],
+      "format": "T10",
+      "venue": "Lord’s",
+      "result": "Punjab De Sher CC won by 29 runs",
+      "playerOfTheMatch": "Jos Buttler"
+    },
+    "stats": [
+      {
+        "playerName": "Aiden Markram",
+        "team": "Punjab De Sher CC",
+        "runs": 54,
+        "balls": 32,
+        "fours": 0,
+        "sixes": 0,
+        "wickets": 0,
+        "overs": 0,
+        "maidens": 0,
+        "catches": 0,
+        "mvp": false
+      },
+      {
+        "playerName": "Harry Brook",
+        "team": "Punjab De Sher CC",
+        "runs": 45,
+        "balls": 17,
+        "fours": 0,
+        "sixes": 0,
+        "wickets": 0,
+        "overs": 0,
+        "maidens": 0,
+        "catches": 1,
+        "mvp": false
+      },
+      {
+        "playerName": "Travis Head",
+        "team": "Punjab De Sher CC",
+        "runs": 26,
+        "balls": 11,
+        "fours": 0,
+        "sixes": 0,
+        "wickets": 0,
+        "overs": 0,
+        "maidens": 0,
+        "catches": 1,
+        "mvp": false
+      },
+      {
+        "playerName": "Abhishek Sharma",
+        "team": "Punjab De Sher CC",
+        "runs": 6,
+        "balls": 1,
+        "fours": 0,
+        "sixes": 0,
+        "wickets": 0,
+        "overs": 0,
+        "maidens": 0,
+        "catches": 0,
+        "mvp": false
+      },
+      {
+        "playerName": "Matt Henry",
+        "team": "Punjab De Sher CC",
+        "runs": 0,
+        "balls": 0,
+        "wickets": 2,
+        "overs": 2,
+        "maidens": 0,
+        "runsConceded": 22,
+        "economy": 11,
+        "mvp": false
+      },
+      {
+        "playerName": "Kyle Jamieson",
+        "team": "Punjab De Sher CC",
+        "runs": 0,
+        "balls": 0,
+        "wickets": 1,
+        "overs": 2,
+        "maidens": 0,
+        "runsConceded": 19,
+        "economy": 9.5,
+        "mvp": false
+      },
+      {
+        "playerName": "Mohammed Shami",
+        "team": "Punjab De Sher CC",
+        "runs": 0,
+        "balls": 0,
+        "wickets": 1,
+        "overs": 2,
+        "maidens": 0,
+        "runsConceded": 18,
+        "economy": 9,
+        "mvp": false
+      },
+      {
+        "playerName": "Kuldeep Yadav",
+        "team": "Punjab De Sher CC",
+        "runs": 0,
+        "balls": 0,
+        "wickets": 1,
+        "overs": 2,
+        "maidens": 0,
+        "runsConceded": 30,
+        "economy": 15,
+        "mvp": false
+      },
+      {
+        "playerName": "Ben Stokes",
+        "team": "Punjab De Sher CC",
+        "runs": 0,
+        "balls": 0,
+        "wickets": 0,
+        "overs": 2,
+        "maidens": 0,
+        "runsConceded": 15,
+        "economy": 7.5,
+        "mvp": false
+      },
+      {
+        "playerName": "Jos Buttler",
+        "team": "Punjab Warriors",
+        "runs": 61,
+        "balls": 31,
+        "fours": 0,
+        "sixes": 0,
+        "wickets": 0,
+        "overs": 0,
+        "maidens": 0,
+        "catches": 0,
+        "mvp": true
+      },
+      {
+        "playerName": "Jason Holder",
+        "team": "Punjab Warriors",
+        "runs": 17,
+        "balls": 12,
+        "fours": 0,
+        "sixes": 0,
+        "wickets": 1,
+        "overs": 2,
+        "maidens": 0,
+        "runsConceded": 24,
+        "economy": 12,
+        "mvp": false
+      },
+      {
+        "playerName": "Shubman Gill",
+        "team": "Punjab Warriors",
+        "runs": 9,
+        "balls": 8,
+        "fours": 0,
+        "sixes": 0,
+        "wickets": 0,
+        "overs": 0,
+        "maidens": 0,
+        "catches": 0,
+        "mvp": false
+      },
+      {
+        "playerName": "Glenn Phillips",
+        "team": "Punjab Warriors",
+        "runs": 5,
+        "balls": 4,
+        "fours": 0,
+        "sixes": 0,
+        "wickets": 0,
+        "overs": 0,
+        "maidens": 0,
+        "catches": 1,
+        "mvp": false
+      },
+      {
+        "playerName": "Sunil Narine",
+        "team": "Punjab Warriors",
+        "runs": 4,
+        "balls": 2,
+        "fours": 0,
+        "sixes": 0,
+        "wickets": 0,
+        "overs": 1,
+        "maidens": 0,
+        "runsConceded": 15,
+        "economy": 15,
+        "mvp": false
+      },
+      {
+        "playerName": "Mujeeb Ur Rahman",
+        "team": "Punjab Warriors",
+        "runs": 0,
+        "balls": 0,
+        "wickets": 1,
+        "overs": 2,
+        "maidens": 0,
+        "runsConceded": 41,
+        "economy": 20.5,
+        "mvp": false
+      },
+      {
+        "playerName": "Arshdeep Singh",
+        "team": "Punjab Warriors",
+        "runs": 0,
+        "balls": 0,
+        "wickets": 0,
+        "overs": 2,
+        "maidens": 0,
+        "runsConceded": 18,
+        "economy": 9,
+        "mvp": false
+      },
+      {
+        "playerName": "Rahul Chahar",
+        "team": "Punjab Warriors",
+        "runs": 0,
+        "balls": 0,
+        "wickets": 0,
+        "overs": 1,
+        "maidens": 0,
+        "runsConceded": 17,
+        "economy": 17,
+        "mvp": false
+      }
+    ]
+  }
+}

@@ -2,18 +2,17 @@
 const mongoose = require('mongoose');
 
 const playerSchema = new mongoose.Schema({
-  playerId: { type: String, default: "" },
+  playerId: { type: String, default: '' },
   playerName: { type: String, required: true },
-  role: { type: String, default: "BAT" }, // BAT | BWL | ALL | WK
-  realTeam: { type: String, default: "" },
+  role: { type: String, enum: ['BAT','BOWL','AR','WK'], default: 'BAT' },
+  realTeam: { type: String, default: '' },
   credits: { type: Number, default: 0 },
-  status: { type: String, default: "active" }
+  status: { type: String, enum: ['active','out','unavailable'], default: 'active' }
 }, { _id: false });
 
 const statSchema = new mongoose.Schema({
   playerName: { type: String, required: true },
   runs: { type: Number, default: 0 },
-  balls: { type: Number, default: 0 },
   fours: { type: Number, default: 0 },
   sixes: { type: Number, default: 0 },
   wickets: { type: Number, default: 0 },
@@ -24,14 +23,14 @@ const statSchema = new mongoose.Schema({
 
 const matchSchema = new mongoose.Schema({
   name: { type: String, required: true },
-  startTime: { type: Date, default: null, index: true },
-  streamUrl: { type: String, default: "" },
-  teamA: { type: String, default: "" },
-  teamB: { type: String, default: "" },
-  externalId: { type: String, default: "" },
-  players: { type: [playerSchema], default: [] },
-  stats: { type: [statSchema], default: [] },
+  teamA: { type: String, default: '' },
+  teamB: { type: String, default: '' },
+  startTime: { type: Date, default: Date.now },
+  streamUrl: { type: String, default: '' },
+  players: { type: [playerSchema], default: [] }, // roster pool
+  stats: { type: [statSchema], default: [] },     // post-match stats
   createdAt: { type: Date, default: Date.now }
 }, { versionKey: false });
 
+matchSchema.index({ startTime: 1 });
 module.exports = mongoose.models.Match || mongoose.model('Match', matchSchema);

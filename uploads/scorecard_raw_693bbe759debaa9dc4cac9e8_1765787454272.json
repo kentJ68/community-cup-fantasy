@@ -1,0 +1,39 @@
+{
+  "provider": "example",
+  "raw": {
+    "providerGuess": "naive-ocr",
+    "parsedBatting": [
+      {
+        "playerName": "PUNJAB DE SHER CC",
+        "dismissal": null,
+        "runs": 9
+      },
+      {
+        "playerName": "Extras",
+        "dismissal": "NOT OUT",
+        "runs": 111
+      },
+      {
+        "playerName": "2NB",
+        "dismissal": null,
+        "runs": 73
+      },
+      {
+        "playerName": "Balls",
+        "dismissal": null,
+        "runs": 31
+      },
+      {
+        "playerName": "9.0 Overs",
+        "dismissal": null,
+        "runs": 121
+      },
+      {
+        "playerName": "LB RB",
+        "dismissal": null,
+        "runs": null
+      }
+    ],
+    "parsedBowling": []
+  }
+}
